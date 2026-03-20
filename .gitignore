@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Flutter
+**/build/
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+
+# IDE
+.idea/
+.vscode/settings.json
+*.iml
+*.swp
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+dist/
+coverage/
+
+# Secrets
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+*.pem
+!infra/*.example
+
+# Python (temp)
+__pycache__/
+*.pyc
+.venv/

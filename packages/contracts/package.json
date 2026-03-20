@@ -1,0 +1,12 @@
+{
+  "name": "@datesim/contracts",
+  "version": "0.1.0",
+  "description": "Shared JSON schemas and TypeScript types for DateSim API",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch"
+  },
+  "license": "UNLICENSED"
+}

@@ -1,0 +1,32 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    setup_ci if ENV["CI"]
+
+    match(
+      type: "appstore",
+      readonly: is_ci,
+    )
+
+    Dir.chdir("../..") do
+      sh("flutter", "build", "ipa", "--release", "--export-options-plist=ios/ExportOptions.plist")
+    end
+
+    upload_to_testflight(
+      ipa: "../build/ios/ipa/datesim.ipa",
+      skip_waiting_for_build_processing: true,
+    )
+  end
+
+  desc "Promote TestFlight build to App Store"
+  lane :release do
+    deliver(
+      skip_binary_upload: true,
+      submit_for_review: true,
+      automatic_release: false,
+      force: true,
+    )
+  end
+end
