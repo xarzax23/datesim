@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../models/scenario.dart';
 import '../providers/scenarios_providers.dart';
+import '../../sessions/providers/sessions_providers.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -11,64 +13,104 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final scenariosAsync = ref.watch(scenariosProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('DateSim'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () {
-              // TODO: navegar a perfil
-            },
+    // Navigate to chat once session is created successfully
+    ref.listen(createSessionProvider, (_, next) {
+      next.whenOrNull(
+        data: (session) {
+          if (session != null) {
+            context.go('/chat/${session.id}');
+          }
+        },
+        error: (error, _) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString().replaceFirst('Exception: ', '')),
+              backgroundColor: theme.colorScheme.error,
+            ),
+          );
+        },
+      );
+    });
+
+    final isCreating = ref.watch(
+      createSessionProvider.select((s) => s.isLoading),
+    );
+
+    return Stack(
+      children: [
+        Scaffold(
+          appBar: AppBar(
+            title: const Text('DateSim'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.person_outline),
+                onPressed: () {
+                  // TODO: navegar a perfil
+                },
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '¡Hola! 👋',
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Elige un escenario para practicar',
-              style: theme.textTheme.bodyLarge?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: scenariosAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) => _ErrorView(
-                  message: error.toString().replaceFirst('Exception: ', ''),
-                  onRetry: () => ref.invalidate(scenariosProvider),
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '¡Hola! 👋',
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                data: (scenarios) => scenarios.isEmpty
-                    ? const Center(child: Text('No hay escenarios disponibles.'))
-                    : ListView.separated(
-                        itemCount: scenarios.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
-                        itemBuilder: (context, index) {
-                          final scenario = scenarios[index];
-                          return _ScenarioCard(
-                            scenario: scenario,
-                            onTap: () {
-                              // TODO: iniciar sesión de chat con scenario.id
+                const SizedBox(height: 8),
+                Text(
+                  'Elige un escenario para practicar',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: scenariosAsync.when(
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (error, _) => _ErrorView(
+                      message:
+                          error.toString().replaceFirst('Exception: ', ''),
+                      onRetry: () => ref.invalidate(scenariosProvider),
+                    ),
+                    data: (scenarios) => scenarios.isEmpty
+                        ? const Center(
+                            child: Text('No hay escenarios disponibles.'))
+                        : ListView.separated(
+                            itemCount: scenarios.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final scenario = scenarios[index];
+                              return _ScenarioCard(
+                                scenario: scenario,
+                                isLoading: isCreating,
+                                onTap: () => ref
+                                    .read(createSessionProvider.notifier)
+                                    .create(
+                                      scenario.id,
+                                      scenario.difficulty.name,
+                                    ),
+                              );
                             },
-                          );
-                        },
-                      ),
-              ),
+                          ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
-      ),
+        // Full-screen loading overlay while creating session
+        if (isCreating)
+          const ModalBarrier(dismissible: false, color: Colors.black26),
+        if (isCreating)
+          const Center(child: CircularProgressIndicator()),
+      ],
     );
   }
 }
@@ -93,7 +135,8 @@ class _ErrorView extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium),
           const SizedBox(height: 16),
-          FilledButton.tonal(onPressed: onRetry, child: const Text('Reintentar')),
+          FilledButton.tonal(
+              onPressed: onRetry, child: const Text('Reintentar')),
         ],
       ),
     );
@@ -101,10 +144,15 @@ class _ErrorView extends StatelessWidget {
 }
 
 class _ScenarioCard extends StatelessWidget {
-  const _ScenarioCard({required this.scenario, required this.onTap});
+  const _ScenarioCard({
+    required this.scenario,
+    required this.onTap,
+    required this.isLoading,
+  });
 
   final Scenario scenario;
   final VoidCallback onTap;
+  final bool isLoading;
 
   static const _difficultyColors = {
     Difficulty.easy: Colors.green,
@@ -127,7 +175,7 @@ class _ScenarioCard extends StatelessWidget {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: onTap,
+        onTap: isLoading ? null : onTap,
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
