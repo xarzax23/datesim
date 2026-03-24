@@ -13,12 +13,13 @@ class HomeScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final scenariosAsync = ref.watch(scenariosProvider);
 
-    // Navigate to chat once session is created successfully
     ref.listen(createSessionProvider, (_, next) {
       next.whenOrNull(
         data: (session) {
           if (session != null) {
-            context.go('/chat/${session.id}');
+            final scenario = ref.read(selectedScenarioProvider);
+            ref.read(selectedScenarioProvider.notifier).state = null;
+            context.go('/chat/${session.id}', extra: scenario);
           }
         },
         error: (error, _) {
@@ -90,12 +91,17 @@ class HomeScreen extends ConsumerWidget {
                               return _ScenarioCard(
                                 scenario: scenario,
                                 isLoading: isCreating,
-                                onTap: () => ref
-                                    .read(createSessionProvider.notifier)
-                                    .create(
-                                      scenario.id,
-                                      scenario.difficulty.name,
-                                    ),
+                                onTap: () {
+                                  ref
+                                      .read(selectedScenarioProvider.notifier)
+                                      .state = scenario;
+                                  ref
+                                      .read(createSessionProvider.notifier)
+                                      .create(
+                                        scenario.id,
+                                        scenario.difficulty.name,
+                                      );
+                                },
                               );
                             },
                           ),
@@ -105,11 +111,9 @@ class HomeScreen extends ConsumerWidget {
             ),
           ),
         ),
-        // Full-screen loading overlay while creating session
         if (isCreating)
           const ModalBarrier(dismissible: false, color: Colors.black26),
-        if (isCreating)
-          const Center(child: CircularProgressIndicator()),
+        if (isCreating) const Center(child: CircularProgressIndicator()),
       ],
     );
   }

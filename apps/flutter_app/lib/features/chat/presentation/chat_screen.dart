@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/chat_providers.dart';
+import '../../home/models/scenario.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String sessionId;
+  final Scenario? scenario;
 
-  const ChatScreen({super.key, required this.sessionId});
+  const ChatScreen({super.key, required this.sessionId, this.scenario});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -13,49 +16,24 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
-  final List<_ChatMessage> _messages = [];
-  bool _isTyping = false;
 
   @override
   void initState() {
     super.initState();
-    // Mensaje inicial del personaje
-    _messages.add(_ChatMessage(
-      role: 'assistant',
-      content: '¡Hola! Me alegra conocerte. ¿Vienes mucho por aquí?',
-      timestamp: DateTime.now(),
-    ));
+    final opening = widget.scenario?.openingMessage ??
+        '¡Hola! Me alegra conocerte. ¿Vienes mucho por aquí?';
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(chatProvider(widget.sessionId).notifier)
+          .addOpeningMessage(opening);
+    });
   }
 
   void _sendMessage() {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-
-    setState(() {
-      _messages.add(_ChatMessage(
-        role: 'user',
-        content: text,
-        timestamp: DateTime.now(),
-      ));
-      _isTyping = true;
-    });
     _controller.clear();
-    _scrollToBottom();
-
-    // TODO: enviar al backend via SSE y recibir respuesta streaming
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        setState(() {
-          _messages.add(_ChatMessage(
-            role: 'assistant',
-            content: '[Respuesta del modelo — conectar con backend]',
-            timestamp: DateTime.now(),
-          ));
-          _isTyping = false;
-        });
-        _scrollToBottom();
-      }
-    });
+    ref.read(chatProvider(widget.sessionId).notifier).sendMessage(text);
   }
 
   void _scrollToBottom() {
@@ -79,9 +57,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final chatState = ref.watch(chatProvider(widget.sessionId));
+
+    ref.listen(chatProvider(widget.sessionId), (_, __) => _scrollToBottom());
+
+    ref.listen<String?>(
+      chatProvider(widget.sessionId).select((s) => s.errorMessage),
+      (_, error) {
+        if (error != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error),
+              backgroundColor: theme.colorScheme.error,
+            ),
+          );
+        }
+      },
+    );
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cita en cafetería'),
+        title: Text(widget.scenario?.name ?? 'Chat'),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -93,23 +90,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (chatState.sessionEnded)
+            Container(
+              width: double.infinity,
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: theme.colorScheme.errorContainer,
+              child: Text(
+                'La sesión ha terminado. ¡Inténtalo de nuevo!',
+                style:
+                    TextStyle(color: theme.colorScheme.onErrorContainer),
+                textAlign: TextAlign.center,
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: _messages.length + (_isTyping ? 1 : 0),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              itemCount: chatState.messages.length,
               itemBuilder: (context, index) {
-                if (index == _messages.length) {
+                final msg = chatState.messages[index];
+                if (msg.isStreaming && msg.content.isEmpty) {
                   return const _TypingIndicator();
                 }
-                final msg = _messages[index];
-                return _MessageBubble(message: msg);
+                return _MessageBubble(
+                  role: msg.role,
+                  content: msg.content,
+                  isStreaming: msg.isStreaming,
+                );
               },
             ),
           ),
           _ChatInput(
             controller: _controller,
             onSend: _sendMessage,
+            enabled: !chatState.isSending && !chatState.sessionEnded,
           ),
         ],
       ),
@@ -117,26 +133,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-class _ChatMessage {
+class _MessageBubble extends StatelessWidget {
   final String role;
   final String content;
-  final DateTime timestamp;
+  final bool isStreaming;
 
-  _ChatMessage({
+  const _MessageBubble({
     required this.role,
     required this.content,
-    required this.timestamp,
+    this.isStreaming = false,
   });
-}
-
-class _MessageBubble extends StatelessWidget {
-  final _ChatMessage message;
-
-  const _MessageBubble({required this.message});
 
   @override
   Widget build(BuildContext context) {
-    final isUser = message.role == 'user';
+    final isUser = role == 'user';
     final theme = Theme.of(context);
 
     return Align(
@@ -158,13 +168,35 @@ class _MessageBubble extends StatelessWidget {
             bottomRight: isUser ? Radius.zero : const Radius.circular(16),
           ),
         ),
-        child: Text(
-          message.content,
-          style: TextStyle(
-            color: isUser
-                ? theme.colorScheme.onPrimary
-                : theme.colorScheme.onSurface,
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Flexible(
+              child: Text(
+                content,
+                style: TextStyle(
+                  color: isUser
+                      ? theme.colorScheme.onPrimary
+                      : theme.colorScheme.onSurface,
+                ),
+              ),
+            ),
+            if (isStreaming)
+              Padding(
+                padding: const EdgeInsets.only(left: 6),
+                child: SizedBox(
+                  width: 10,
+                  height: 10,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: isUser
+                        ? theme.colorScheme.onPrimary
+                        : theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -246,8 +278,13 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 class _ChatInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final bool enabled;
 
-  const _ChatInput({required this.controller, required this.onSend});
+  const _ChatInput({
+    required this.controller,
+    required this.onSend,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -271,7 +308,8 @@ class _ChatInput extends StatelessWidget {
             child: TextField(
               controller: controller,
               textInputAction: TextInputAction.send,
-              onSubmitted: (_) => onSend(),
+              onSubmitted: enabled ? (_) => onSend() : null,
+              enabled: enabled,
               decoration: const InputDecoration(
                 hintText: 'Escribe tu mensaje...',
                 border: InputBorder.none,
@@ -282,7 +320,7 @@ class _ChatInput extends StatelessWidget {
             ),
           ),
           IconButton.filled(
-            onPressed: onSend,
+            onPressed: enabled ? onSend : null,
             icon: const Icon(Icons.send),
           ),
         ],

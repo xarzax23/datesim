@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/providers/auth_providers.dart';
+import '../features/home/models/scenario.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
 
@@ -31,7 +32,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/chat/:sessionId',
         builder: (context, state) {
           final sessionId = state.pathParameters['sessionId']!;
-          return ChatScreen(sessionId: sessionId);
+          final scenario = state.extra as Scenario?;
+          return ChatScreen(sessionId: sessionId, scenario: scenario);
         },
       ),
     ],

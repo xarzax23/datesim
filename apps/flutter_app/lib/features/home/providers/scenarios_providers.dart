@@ -19,3 +19,7 @@ final scenariosServiceProvider = Provider<ScenariosService>((ref) {
 final scenariosProvider = FutureProvider<List<Scenario>>((ref) {
   return ref.watch(scenariosServiceProvider).getScenarios();
 });
+
+/// Tracks the scenario the user tapped before session creation,
+/// so it can be passed to ChatScreen via route extra.
+final selectedScenarioProvider = StateProvider<Scenario?>((ref) => null);
