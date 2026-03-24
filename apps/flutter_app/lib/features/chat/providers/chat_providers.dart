@@ -51,14 +51,16 @@ class ChatState {
       );
 }
 
-class ChatNotifier extends StateNotifier<ChatState> {
-  ChatNotifier({required ChatService service, required String sessionId})
-      : _service = service,
-        _sessionId = sessionId,
-        super(const ChatState());
+class ChatNotifier extends FamilyNotifier<ChatState, String> {
+  late ChatService _service;
+  late String _sessionId;
 
-  final ChatService _service;
-  final String _sessionId;
+  @override
+  ChatState build(String sessionId) {
+    _service = ref.watch(chatServiceProvider);
+    _sessionId = sessionId;
+    return const ChatState();
+  }
 
   void addOpeningMessage(String content) {
     if (state.messages.isNotEmpty) return;
@@ -149,9 +151,6 @@ final chatServiceProvider = Provider<ChatService>((ref) {
 });
 
 final chatProvider =
-    StateNotifierProvider.family<ChatNotifier, ChatState, String>(
-  (ref, sessionId) => ChatNotifier(
-    service: ref.watch(chatServiceProvider),
-    sessionId: sessionId,
-  ),
+    NotifierProvider.family<ChatNotifier, ChatState, String>(
+  ChatNotifier.new,
 );

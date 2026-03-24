@@ -22,4 +22,12 @@ final scenariosProvider = FutureProvider<List<Scenario>>((ref) {
 
 /// Tracks the scenario the user tapped before session creation,
 /// so it can be passed to ChatScreen via route extra.
-final selectedScenarioProvider = StateProvider<Scenario?>((ref) => null);
+class _SelectedScenarioNotifier extends Notifier<Scenario?> {
+  @override
+  Scenario? build() => null;
+}
+
+final selectedScenarioProvider =
+    NotifierProvider<_SelectedScenarioNotifier, Scenario?>(
+  _SelectedScenarioNotifier.new,
+);
