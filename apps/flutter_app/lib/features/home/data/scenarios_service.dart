@@ -33,7 +33,9 @@ class ScenariosService {
         e.type == DioExceptionType.receiveTimeout) {
       return 'Tiempo de espera agotado. Verifica tu conexión.';
     }
-    if (e.response?.statusCode == 401) return 'Sesión expirada. Inicia sesión de nuevo.';
+    if (e.response?.statusCode == 401) {
+      return 'Sesión expirada. Inicia sesión de nuevo.';
+    }
     if (e.response?.statusCode != null) {
       return 'Error del servidor (${e.response!.statusCode}).';
     }
