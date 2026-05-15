@@ -18,7 +18,7 @@ class HomeScreen extends ConsumerWidget {
         data: (session) {
           if (session != null) {
             final scenario = ref.read(selectedScenarioProvider);
-            ref.read(selectedScenarioProvider.notifier).state = null;
+            ref.read(selectedScenarioProvider.notifier).clear();
             context.go('/chat/${session.id}', extra: scenario);
           }
         },
@@ -94,7 +94,7 @@ class HomeScreen extends ConsumerWidget {
                                 onTap: () {
                                   ref
                                       .read(selectedScenarioProvider.notifier)
-                                      .state = scenario;
+                                      .select(scenario);
                                   ref
                                       .read(createSessionProvider.notifier)
                                       .create(

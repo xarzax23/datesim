@@ -1,0 +1,4 @@
+interface:
+  display_name: "DateSim Product Design"
+  short_description: "Design mobile-first DateSim flows and UX"
+  default_prompt: "Use DateSim product design to shape a mobile-first screen, flow, or UX decision."

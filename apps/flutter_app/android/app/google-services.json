@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "317467092059",
+    "project_id": "datesim-4a434",
+    "storage_bucket": "datesim-4a434.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:317467092059:android:705dce7ccab9c55e2a4b7e",
+        "android_client_info": {
+          "package_name": "com.datesim.datesim"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCgrb239iV3DxEwbf1trBKCp0ka7gRC3oY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

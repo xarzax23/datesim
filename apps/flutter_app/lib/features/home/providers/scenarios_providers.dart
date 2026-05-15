@@ -25,6 +25,14 @@ final scenariosProvider = FutureProvider<List<Scenario>>((ref) {
 class _SelectedScenarioNotifier extends Notifier<Scenario?> {
   @override
   Scenario? build() => null;
+
+  void select(Scenario scenario) {
+    state = scenario;
+  }
+
+  void clear() {
+    state = null;
+  }
 }
 
 final selectedScenarioProvider =

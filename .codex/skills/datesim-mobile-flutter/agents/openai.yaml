@@ -1,0 +1,4 @@
+interface:
+  display_name: "DateSim Mobile Flutter"
+  short_description: "Implement Flutter features with Riverpod and tests"
+  default_prompt: "Use DateSim mobile Flutter to implement or review a Flutter feature in the app."

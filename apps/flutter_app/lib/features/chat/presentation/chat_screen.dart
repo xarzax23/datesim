@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/chat_providers.dart';
 import '../../home/models/scenario.dart';
+import '../widgets/scorecard_display.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String sessionId;
-  final Scenario? scenario;
+  final Scenario scenario;
 
-  const ChatScreen({super.key, required this.sessionId, this.scenario});
+  const ChatScreen({
+    super.key,
+    required this.sessionId,
+    required this.scenario,
+  });
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -20,12 +25,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    final opening = widget.scenario?.openingMessage ??
-        '¡Hola! Me alegra conocerte. ¿Vienes mucho por aquí?';
+    final opening = widget.scenario.openingMessage;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(chatProvider(widget.sessionId).notifier)
-          .addOpeningMessage(opening);
+      final notifier = ref.read(chatProvider.notifier);
+      notifier.configure(
+        (sessionId: widget.sessionId, scenario: widget.scenario),
+      );
+      notifier.addOpeningMessage(opening);
     });
   }
 
@@ -33,7 +39,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     _controller.clear();
-    ref.read(chatProvider(widget.sessionId).notifier).sendMessage(text);
+    ref.read(chatProvider.notifier).sendMessage(text);
   }
 
   void _scrollToBottom() {
@@ -58,12 +64,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final chatState = ref.watch(chatProvider(widget.sessionId));
+    final chatState = ref.watch(chatProvider);
+    final showScorecard =
+        chatState.lastScorecard != null &&
+        widget.scenario.difficulty == Difficulty.easy;
 
-    ref.listen(chatProvider(widget.sessionId), (_, __) => _scrollToBottom());
+    ref.listen(chatProvider, (_, __) => _scrollToBottom());
 
     ref.listen<String?>(
-      chatProvider(widget.sessionId).select((s) => s.errorMessage),
+      chatProvider.select((s) => s.errorMessage),
       (_, error) {
         if (error != null) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -78,7 +87,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.scenario?.name ?? 'Chat'),
+        title: Text(widget.scenario.name),
         actions: [
           IconButton(
             icon: const Icon(Icons.info_outline),
@@ -108,8 +117,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               controller: _scrollController,
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              itemCount: chatState.messages.length,
+              itemCount: chatState.messages.length + (showScorecard ? 1 : 0),
               itemBuilder: (context, index) {
+                if (showScorecard && index == chatState.messages.length) {
+                  return AnimatedOpacity(
+                    opacity: showScorecard ? 1 : 0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    child: ScorecardDisplay(
+                      scorecard: chatState.lastScorecard!,
+                      onDismiss: () {
+                        ref.read(chatProvider.notifier).clearLastScorecard();
+                      },
+                    ),
+                  );
+                }
+
                 final msg = chatState.messages[index];
                 if (msg.isStreaming && msg.content.isEmpty) {
                   return const _TypingIndicator();

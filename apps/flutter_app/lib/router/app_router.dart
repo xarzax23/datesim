@@ -33,6 +33,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) {
           final sessionId = state.pathParameters['sessionId']!;
           final scenario = state.extra as Scenario?;
+          if (scenario == null) {
+            return const HomeScreen();
+          }
           return ChatScreen(sessionId: sessionId, scenario: scenario);
         },
       ),

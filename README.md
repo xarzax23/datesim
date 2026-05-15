@@ -36,3 +36,21 @@ docs/              # ADRs, guías de prompts
 - **Fase 0** (semanas 1-2): Auth + estructura + deploy básico
 - **MVP Core** (semanas 3-6): Chat con scoring, 1 escenario, streaming SSE
 - **MVP Completo** (semanas 7-10): Múltiples escenarios, dificultades, pagos, progreso
+
+## Scorecard En Chat (MVP Core)
+
+La app móvil incluye scorecard por turno cuando la dificultad del escenario es **easy**.
+
+- Parseo de evento SSE `scorecard` a modelo tipado.
+- Validación de métricas en rango `0..10`.
+- Visualización en UI con barras para Fluidez, Empatía, Iniciativa, Claridad y Seguridad.
+- Badge de decisión (`Continuar`, `Enfriar`, `Rechazo`) y razón explicativa.
+- Renderizado condicional para no interferir con dificultades medium/hard.
+
+Archivos clave:
+
+- `apps/flutter_app/lib/features/chat/models/scorecard.dart`
+- `apps/flutter_app/lib/features/chat/models/chat_event.dart`
+- `apps/flutter_app/lib/features/chat/providers/chat_providers.dart`
+- `apps/flutter_app/lib/features/chat/widgets/scorecard_display.dart`
+- `apps/flutter_app/lib/features/chat/presentation/chat_screen.dart`

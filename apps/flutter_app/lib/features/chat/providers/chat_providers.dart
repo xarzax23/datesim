@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../home/models/scenario.dart';
 import '../data/chat_service.dart';
-import '../models/chat_event.dart';
+import '../models/scorecard.dart';
 
 class ChatMessage {
   final String id;
@@ -25,41 +28,64 @@ class ChatMessage {
 }
 
 class ChatState {
+  static const _noChange = Object();
+
   final List<ChatMessage> messages;
   final bool isSending;
   final bool sessionEnded;
   final String? errorMessage;
+  final Scorecard? lastScorecard;
 
   const ChatState({
     this.messages = const [],
     this.isSending = false,
     this.sessionEnded = false,
     this.errorMessage,
+    this.lastScorecard,
   });
 
   ChatState copyWith({
     List<ChatMessage>? messages,
     bool? isSending,
     bool? sessionEnded,
-    String? errorMessage,
+    Object? errorMessage = _noChange,
+    Scorecard? lastScorecard,
+    bool clearLastScorecard = false,
   }) =>
       ChatState(
         messages: messages ?? this.messages,
         isSending: isSending ?? this.isSending,
         sessionEnded: sessionEnded ?? this.sessionEnded,
-        errorMessage: errorMessage,
+        errorMessage: errorMessage == _noChange
+            ? this.errorMessage
+            : errorMessage as String?,
+        lastScorecard:
+            clearLastScorecard ? null : lastScorecard ?? this.lastScorecard,
       );
 }
 
-class ChatNotifier extends FamilyNotifier<ChatState, String> {
+typedef ChatProviderArgs = ({String sessionId, Scenario scenario});
+
+class ChatNotifier extends Notifier<ChatState> {
   late ChatService _service;
-  late String _sessionId;
+  String? _sessionId;
+  Scenario? _scenario;
 
   @override
-  ChatState build(String sessionId) {
+  ChatState build() {
     _service = ref.watch(chatServiceProvider);
-    _sessionId = sessionId;
     return const ChatState();
+  }
+
+  void configure(ChatProviderArgs args) {
+    _sessionId = args.sessionId;
+    _scenario = args.scenario;
+  }
+
+  Scenario? get scenario => _scenario;
+
+  void clearLastScorecard() {
+    state = state.copyWith(clearLastScorecard: true);
   }
 
   void addOpeningMessage(String content) {
@@ -72,6 +98,14 @@ class ChatNotifier extends FamilyNotifier<ChatState, String> {
   }
 
   Future<void> sendMessage(String content) async {
+    final currentSessionId = _sessionId;
+    if (currentSessionId == null) {
+      state = state.copyWith(
+        errorMessage: 'La sesion no esta configurada correctamente.',
+      );
+      return;
+    }
+
     if (state.isSending || state.sessionEnded) return;
 
     final userMsg = ChatMessage(
@@ -91,13 +125,16 @@ class ChatNotifier extends FamilyNotifier<ChatState, String> {
       messages: [...state.messages, userMsg, assistantMsg],
       isSending: true,
       errorMessage: null,
+      clearLastScorecard: true,
     );
 
     try {
-      await for (final event in _service.sendMessage(_sessionId, content)) {
+      await for (final event in _service.sendMessage(currentSessionId, content)) {
         switch (event.type) {
           case 'delta':
             _appendToken(assistantId, event.rawData);
+          case 'scorecard':
+            _handleScorecard(event.rawData);
           case 'done':
             _finishStreaming(assistantId, rejected: event.isRejected);
           case 'error':
@@ -108,6 +145,23 @@ class ChatNotifier extends FamilyNotifier<ChatState, String> {
       if (state.isSending) {
         _finishStreaming(assistantId, rejected: false);
       }
+    }
+  }
+
+  void _handleScorecard(String rawData) {
+    try {
+      // Scorecard events arrive as JSON payloads inside SSE `data`.
+      final decoded = jsonDecode(rawData);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Scorecard payload is not a JSON object.');
+      }
+      final scorecard = Scorecard.fromJson(decoded);
+      state = state.copyWith(lastScorecard: scorecard);
+    } catch (_) {
+      // Keep chat streaming alive even if scorecard payload is malformed.
+      state = state.copyWith(
+        errorMessage: 'No se pudo procesar el scorecard recibido.',
+      );
     }
   }
 
@@ -150,7 +204,6 @@ final chatServiceProvider = Provider<ChatService>((ref) {
   return ChatService(auth: ref.watch(firebaseAuthProvider));
 });
 
-final chatProvider =
-    NotifierProvider.family<ChatNotifier, ChatState, String>(
+final chatProvider = NotifierProvider<ChatNotifier, ChatState>(
   ChatNotifier.new,
 );

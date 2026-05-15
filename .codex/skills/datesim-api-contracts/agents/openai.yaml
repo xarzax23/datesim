@@ -1,0 +1,4 @@
+interface:
+  display_name: "DateSim API Contracts"
+  short_description: "Keep backend, SSE, and mobile contracts aligned"
+  default_prompt: "Use DateSim API contracts to implement or review backend-mobile integration work."
