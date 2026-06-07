@@ -23,9 +23,9 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 #### Status Snapshot
 
-- Implemented in code: scenario loading, session creation, chat POST, SSE parsing, Riverpod chat state, home-to-chat routing, scorecard rendering for easy mode, and basic rejected state handling.
+- Implemented in code: scenario loading, session creation, chat POST, SSE parsing, Riverpod chat state, home-to-chat routing, scorecard rendering for easy mode, and terminal rejected/completed state handling.
 - Implemented after delegation: mobile `GET /sessions` service/provider and shared contracts alignment.
-- Partial: completed-session lifecycle/UX and a complete OpenAI-backed streaming chat turn.
+- Partial: a complete OpenAI-backed streaming chat turn.
 - Environment ready: Android SDK 36, the `DateSim_API_36` emulator, PostgreSQL 17, Firebase Auth Emulator, and the local backend are running on this computer.
 - Verified locally: a fictitious email user authenticates, loads scenarios, creates a persisted session, sends messages, receives streamed responses and scorecards, and reaches a persisted rejected state from Android.
 - Blocker/risk: the recovered `OPENAI_API_KEY` is valid but currently has no available quota; local fallback mode provides content-aware heuristic scoring for UI/SSE testing.
@@ -91,9 +91,9 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 - [x] Verify rejected session behavior from the Android emulator
   - Owner: backend-api-developer + mobile-flutter-developer + qa-release-engineer
   - Result: hostile or unsafe responses receive low scores, emit `done: rejected`, persist session status `rejected`, show the end-state banner, and disable further input
-- [ ] Define and implement the normal `completed` session lifecycle
+- [x] Define and implement the normal `completed` session lifecycle
   - Owner: product-ux-designer + backend-api-developer + contracts-integration + mobile-flutter-developer
-  - Scope: decide the completion trigger, persist `completed`, expose the terminal event to Flutter, and present a clear completed state
+  - Result: after at least one user turn, the user can explicitly finish the practice, confirm the action, persist `completed` with the average score, see a clear terminal banner, and no longer send messages
 
 #### Definition Of Done
 
@@ -103,6 +103,7 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 - The assistant response streams progressively in the chat UI.
 - If a scorecard is returned in easy mode, it is rendered in the UI.
 - If the session is rejected, the UI reflects it and disables further input.
+- If the user finishes an active session, the backend persists `completed` and the UI disables further input.
 - Shared contracts match the backend/mobile runtime shape.
 - Focused tests cover SSE parsing, scorecard parsing, rejected state, and session service behavior.
 - A real OpenAI-backed turn is verified with local fallback disabled.
@@ -122,8 +123,7 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 1. backend-api-developer: restore OpenAI API quota or provide another funded key.
 2. qa-release-engineer: repeat the verified turn with local fallback disabled and confirm the real model response.
-3. product-ux-designer + backend-api-developer + contracts-integration: define the normal `completed` lifecycle.
-4. delivery-manager: close Block 1 and start Block 2 after the real model turn and completed-lifecycle contract are verified.
+3. delivery-manager: close Block 1 and start Block 2 after the real model turn is verified.
 
 ## Next Block After That
 
@@ -147,7 +147,6 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 - Malformed scorecard events are covered; malformed transport lines are ignored, but the user-facing retry path remains basic.
 - Contracts package is aligned with the current runtime shape, but still needs a mature workflow before it becomes the long-term source of truth.
 - Available OpenAI API quota is required before validating the complete real streamed chat turn.
-- Active sessions do not yet have a normal path to persisted `completed` status.
 
 ## Update Rule
 

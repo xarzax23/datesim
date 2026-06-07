@@ -2,6 +2,10 @@ import 'package:datesim/features/chat/data/chat_service.dart';
 import 'package:datesim/features/chat/models/chat_event.dart';
 import 'package:datesim/features/chat/providers/chat_providers.dart';
 import 'package:datesim/features/home/models/scenario.dart';
+import 'package:datesim/features/sessions/data/sessions_service.dart';
+import 'package:datesim/features/sessions/models/session.dart';
+import 'package:datesim/features/sessions/providers/sessions_providers.dart';
+import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +51,22 @@ class _RejectedDoneService extends ChatService {
   }
 }
 
+class _CompletedSessionsService extends SessionsService {
+  _CompletedSessionsService() : super(dio: Dio(), auth: _FakeFirebaseAuth());
+
+  @override
+  Future<Session> completeSession(String sessionId) async {
+    return Session(
+      id: sessionId,
+      scenarioId: 'cafeteria',
+      difficulty: 'easy',
+      status: SessionStatus.completed,
+      overallScore: 7.4,
+      createdAt: DateTime.utc(2026, 6, 7),
+    );
+  }
+}
+
 void main() {
   final scenario = Scenario(
     id: 's1',
@@ -58,28 +78,33 @@ void main() {
     openingMessage: 'Hola inicial',
   );
 
-  test('ChatNotifier procesa delta -> scorecard -> done sin romper flujo',
-      () async {
-    final container = ProviderContainer(
-      overrides: [
-        chatServiceProvider.overrideWithValue(_HappyPathChatService()),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'ChatNotifier procesa delta -> scorecard -> done sin romper flujo',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          chatServiceProvider.overrideWithValue(_HappyPathChatService()),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final notifier = container.read(chatProvider.notifier);
-    notifier.configure((sessionId: 'session-1', scenario: scenario));
-    notifier.addOpeningMessage('Hola inicial');
+      final notifier = container.read(chatProvider.notifier);
+      notifier.configure((sessionId: 'session-1', scenario: scenario));
+      notifier.addOpeningMessage('Hola inicial');
 
-    await notifier.sendMessage('Que tal?');
+      await notifier.sendMessage('Que tal?');
 
-    final state = container.read(chatProvider);
-    expect(state.messages.where((m) => m.role == 'user').length, 1);
-    expect(state.messages.where((m) => m.role == 'assistant').length, greaterThan(0));
-    expect(state.lastScorecard, isNotNull);
-    expect(state.isSending, isFalse);
-    expect(state.errorMessage, isNull);
-  });
+      final state = container.read(chatProvider);
+      expect(state.messages.where((m) => m.role == 'user').length, 1);
+      expect(
+        state.messages.where((m) => m.role == 'assistant').length,
+        greaterThan(0),
+      );
+      expect(state.lastScorecard, isNotNull);
+      expect(state.isSending, isFalse);
+      expect(state.errorMessage, isNull);
+    },
+  );
 
   test('ChatNotifier maneja scorecard malformado sin crash', () async {
     final container = ProviderContainer(
@@ -100,8 +125,49 @@ void main() {
     expect(state.errorMessage, isNotNull);
   });
 
-  test('ChatNotifier marca sessionEnded cuando done llega como rejected',
-      () async {
+  test(
+    'ChatNotifier marca sessionEnded cuando done llega como rejected',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          chatServiceProvider.overrideWithValue(_RejectedDoneService()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final notifier = container.read(chatProvider.notifier);
+      notifier.configure((sessionId: 'session-3', scenario: scenario));
+
+      await notifier.sendMessage('Mensaje');
+
+      final state = container.read(chatProvider);
+      expect(state.sessionEnded, isTrue);
+      expect(state.sessionEndReason, SessionEndReason.rejected);
+    },
+  );
+
+  test('completeSession marca la práctica como completada', () async {
+    final container = ProviderContainer(
+      overrides: [
+        chatServiceProvider.overrideWithValue(_HappyPathChatService()),
+        sessionsServiceProvider.overrideWithValue(_CompletedSessionsService()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(chatProvider.notifier);
+    notifier.configure((sessionId: 'session-completed', scenario: scenario));
+    notifier.addOpeningMessage('Hola inicial');
+    await notifier.sendMessage('Me alegra conocerte. ¿Vienes mucho por aquí?');
+    await notifier.completeSession();
+
+    final state = container.read(chatProvider);
+    expect(state.sessionEnded, isTrue);
+    expect(state.sessionEndReason, SessionEndReason.completed);
+    expect(state.isCompleting, isFalse);
+  });
+
+  test('configure limpia el estado al abrir una sesión diferente', () async {
     final container = ProviderContainer(
       overrides: [
         chatServiceProvider.overrideWithValue(_RejectedDoneService()),
@@ -110,12 +176,16 @@ void main() {
     addTearDown(container.dispose);
 
     final notifier = container.read(chatProvider.notifier);
-    notifier.configure((sessionId: 'session-3', scenario: scenario));
-
+    notifier.configure((sessionId: 'session-rejected', scenario: scenario));
     await notifier.sendMessage('Mensaje');
+    expect(container.read(chatProvider).sessionEnded, isTrue);
+
+    notifier.configure((sessionId: 'session-new', scenario: scenario));
 
     final state = container.read(chatProvider);
-    expect(state.sessionEnded, isTrue);
+    expect(state.messages, isEmpty);
+    expect(state.sessionEnded, isFalse);
+    expect(state.sessionEndReason, isNull);
   });
 
   test('sendMessage sin configure no crashea y setea error', () async {
@@ -133,27 +203,29 @@ void main() {
     expect(state.errorMessage, isNotNull);
   });
 
-  test('addOpeningMessage solo agrega una vez y clearLastScorecard funciona',
-      () async {
-    final container = ProviderContainer(
-      overrides: [
-        chatServiceProvider.overrideWithValue(_HappyPathChatService()),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'addOpeningMessage solo agrega una vez y clearLastScorecard funciona',
+    () async {
+      final container = ProviderContainer(
+        overrides: [
+          chatServiceProvider.overrideWithValue(_HappyPathChatService()),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final notifier = container.read(chatProvider.notifier);
-    notifier.configure((sessionId: 'session-4', scenario: scenario));
-    notifier.addOpeningMessage('Hola inicial');
-    notifier.addOpeningMessage('No debe repetirse');
+      final notifier = container.read(chatProvider.notifier);
+      notifier.configure((sessionId: 'session-4', scenario: scenario));
+      notifier.addOpeningMessage('Hola inicial');
+      notifier.addOpeningMessage('No debe repetirse');
 
-    final state = container.read(chatProvider);
-    expect(state.messages.length, 1);
+      final state = container.read(chatProvider);
+      expect(state.messages.length, 1);
 
-    await notifier.sendMessage('Mensaje para generar scorecard');
-    expect(container.read(chatProvider).lastScorecard, isNotNull);
+      await notifier.sendMessage('Mensaje para generar scorecard');
+      expect(container.read(chatProvider).lastScorecard, isNotNull);
 
-    notifier.clearLastScorecard();
-    expect(container.read(chatProvider).lastScorecard, isNull);
-  });
+      notifier.clearLastScorecard();
+      expect(container.read(chatProvider).lastScorecard, isNull);
+    },
+  );
 }

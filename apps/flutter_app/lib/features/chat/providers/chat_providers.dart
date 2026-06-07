@@ -3,8 +3,12 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../home/models/scenario.dart';
+import '../../sessions/models/session.dart';
+import '../../sessions/providers/sessions_providers.dart';
 import '../data/chat_service.dart';
 import '../models/scorecard.dart';
+
+enum SessionEndReason { completed, rejected }
 
 class ChatMessage {
   final String id;
@@ -20,11 +24,11 @@ class ChatMessage {
   });
 
   ChatMessage copyWith({String? content, bool? isStreaming}) => ChatMessage(
-        id: id,
-        role: role,
-        content: content ?? this.content,
-        isStreaming: isStreaming ?? this.isStreaming,
-      );
+    id: id,
+    role: role,
+    content: content ?? this.content,
+    isStreaming: isStreaming ?? this.isStreaming,
+  );
 }
 
 class ChatState {
@@ -32,14 +36,18 @@ class ChatState {
 
   final List<ChatMessage> messages;
   final bool isSending;
+  final bool isCompleting;
   final bool sessionEnded;
+  final SessionEndReason? sessionEndReason;
   final String? errorMessage;
   final Scorecard? lastScorecard;
 
   const ChatState({
     this.messages = const [],
     this.isSending = false,
+    this.isCompleting = false,
     this.sessionEnded = false,
+    this.sessionEndReason,
     this.errorMessage,
     this.lastScorecard,
   });
@@ -47,21 +55,25 @@ class ChatState {
   ChatState copyWith({
     List<ChatMessage>? messages,
     bool? isSending,
+    bool? isCompleting,
     bool? sessionEnded,
+    SessionEndReason? sessionEndReason,
     Object? errorMessage = _noChange,
     Scorecard? lastScorecard,
     bool clearLastScorecard = false,
-  }) =>
-      ChatState(
-        messages: messages ?? this.messages,
-        isSending: isSending ?? this.isSending,
-        sessionEnded: sessionEnded ?? this.sessionEnded,
-        errorMessage: errorMessage == _noChange
-            ? this.errorMessage
-            : errorMessage as String?,
-        lastScorecard:
-            clearLastScorecard ? null : lastScorecard ?? this.lastScorecard,
-      );
+  }) => ChatState(
+    messages: messages ?? this.messages,
+    isSending: isSending ?? this.isSending,
+    isCompleting: isCompleting ?? this.isCompleting,
+    sessionEnded: sessionEnded ?? this.sessionEnded,
+    sessionEndReason: sessionEndReason ?? this.sessionEndReason,
+    errorMessage: errorMessage == _noChange
+        ? this.errorMessage
+        : errorMessage as String?,
+    lastScorecard: clearLastScorecard
+        ? null
+        : lastScorecard ?? this.lastScorecard,
+  );
 }
 
 typedef ChatProviderArgs = ({String sessionId, Scenario scenario});
@@ -78,6 +90,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void configure(ChatProviderArgs args) {
+    if (_sessionId != args.sessionId) {
+      state = const ChatState();
+    }
     _sessionId = args.sessionId;
     _scenario = args.scenario;
   }
@@ -106,7 +121,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
-    if (state.isSending || state.sessionEnded) return;
+    if (state.isSending || state.isCompleting || state.sessionEnded) return;
 
     final userMsg = ChatMessage(
       id: '${DateTime.now().millisecondsSinceEpoch}_u',
@@ -129,7 +144,10 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     try {
-      await for (final event in _service.sendMessage(currentSessionId, content)) {
+      await for (final event in _service.sendMessage(
+        currentSessionId,
+        content,
+      )) {
         switch (event.type) {
           case 'delta':
             _appendToken(assistantId, event.rawData);
@@ -145,6 +163,46 @@ class ChatNotifier extends Notifier<ChatState> {
       if (state.isSending) {
         _finishStreaming(assistantId, rejected: false);
       }
+    }
+  }
+
+  Future<void> completeSession() async {
+    final currentSessionId = _sessionId;
+    if (currentSessionId == null) {
+      state = state.copyWith(
+        errorMessage: 'La sesión no está configurada correctamente.',
+      );
+      return;
+    }
+    if (state.isSending || state.isCompleting || state.sessionEnded) return;
+
+    final hasUserTurn = state.messages.any((message) => message.role == 'user');
+    if (!hasUserTurn) {
+      state = state.copyWith(
+        errorMessage: 'Envía al menos un mensaje antes de finalizar.',
+      );
+      return;
+    }
+
+    state = state.copyWith(isCompleting: true, errorMessage: null);
+    try {
+      final session = await ref
+          .read(sessionsServiceProvider)
+          .completeSession(currentSessionId);
+      if (session.status != SessionStatus.completed) {
+        throw StateError('La sesión no se completó correctamente.');
+      }
+      state = state.copyWith(
+        isCompleting: false,
+        sessionEnded: true,
+        sessionEndReason: SessionEndReason.completed,
+      );
+      ref.invalidate(sessionsProvider);
+    } catch (error) {
+      state = state.copyWith(
+        isCompleting: false,
+        errorMessage: error.toString().replaceFirst('Exception: ', ''),
+      );
     }
   }
 
@@ -180,17 +238,22 @@ class ChatNotifier extends Notifier<ChatState> {
       messages: updated,
       isSending: false,
       sessionEnded: rejected ? true : state.sessionEnded,
+      sessionEndReason: rejected
+          ? SessionEndReason.rejected
+          : state.sessionEndReason,
     );
   }
 
   void _handleError(String msgId, String error) {
     final updated = state.messages
-        .map((m) => m.id == msgId
-            ? m.copyWith(
-                content: 'No se pudo obtener respuesta.',
-                isStreaming: false,
-              )
-            : m)
+        .map(
+          (m) => m.id == msgId
+              ? m.copyWith(
+                  content: 'No se pudo obtener respuesta.',
+                  isStreaming: false,
+                )
+              : m,
+        )
         .toList();
     state = state.copyWith(
       messages: updated,

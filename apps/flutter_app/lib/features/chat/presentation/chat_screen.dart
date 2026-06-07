@@ -28,9 +28,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final opening = widget.scenario.openingMessage;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final notifier = ref.read(chatProvider.notifier);
-      notifier.configure(
-        (sessionId: widget.sessionId, scenario: widget.scenario),
-      );
+      notifier.configure((
+        sessionId: widget.sessionId,
+        scenario: widget.scenario,
+      ));
       notifier.addOpeningMessage(opening);
     });
   }
@@ -40,6 +41,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (text.isEmpty) return;
     _controller.clear();
     ref.read(chatProvider.notifier).sendMessage(text);
+  }
+
+  Future<void> _completeSession() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Finalizar práctica'),
+        content: const Text(
+          'Guardaremos el resultado de esta conversación y ya no podrás enviar más mensajes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Finalizar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await ref.read(chatProvider.notifier).completeSession();
+    }
   }
 
   void _scrollToBottom() {
@@ -68,33 +95,45 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final showScorecard =
         chatState.lastScorecard != null &&
         widget.scenario.difficulty == Difficulty.easy;
+    final canComplete =
+        chatState.messages.any((message) => message.role == 'user') &&
+        !chatState.isSending &&
+        !chatState.isCompleting &&
+        !chatState.sessionEnded;
+    final isCompleted =
+        chatState.sessionEndReason == SessionEndReason.completed;
 
     ref.listen(chatProvider, (_, __) => _scrollToBottom());
 
-    ref.listen<String?>(
-      chatProvider.select((s) => s.errorMessage),
-      (_, error) {
-        if (error != null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              backgroundColor: theme.colorScheme.error,
-            ),
-          );
-        }
-      },
-    );
+    ref.listen<String?>(chatProvider.select((s) => s.errorMessage), (_, error) {
+      if (error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: theme.colorScheme.error,
+          ),
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.scenario.name),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.info_outline),
-            onPressed: () {
-              // TODO: mostrar scorecard / info de sesión
-            },
-          ),
+          if (chatState.isCompleting)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.stop_circle_outlined),
+              tooltip: 'Finalizar práctica',
+              onPressed: canComplete ? _completeSession : null,
+            ),
         ],
       ),
       body: Column(
@@ -102,21 +141,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (chatState.sessionEnded)
             Container(
               width: double.infinity,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              color: theme.colorScheme.errorContainer,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              color: isCompleted
+                  ? theme.colorScheme.primaryContainer
+                  : theme.colorScheme.errorContainer,
               child: Text(
-                'La sesión ha terminado. ¡Inténtalo de nuevo!',
-                style:
-                    TextStyle(color: theme.colorScheme.onErrorContainer),
+                isCompleted
+                    ? 'Práctica completada. Tu resultado se ha guardado.'
+                    : 'La sesión ha terminado. ¡Inténtalo de nuevo!',
+                style: TextStyle(
+                  color: isCompleted
+                      ? theme.colorScheme.onPrimaryContainer
+                      : theme.colorScheme.onErrorContainer,
+                ),
                 textAlign: TextAlign.center,
               ),
             ),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               itemCount: chatState.messages.length + (showScorecard ? 1 : 0),
               itemBuilder: (context, index) {
                 if (showScorecard && index == chatState.messages.length) {
@@ -148,7 +192,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _ChatInput(
             controller: _controller,
             onSend: _sendMessage,
-            enabled: !chatState.isSending && !chatState.sessionEnded,
+            enabled:
+                !chatState.isSending &&
+                !chatState.isCompleting &&
+                !chatState.sessionEnded,
           ),
         ],
       ),

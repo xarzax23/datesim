@@ -52,11 +52,12 @@ describe('ChatService', () => {
       scoreMessage: jest.fn().mockResolvedValue(scorecard),
     } as unknown as ScoringService;
     const sessionRepo = {
-      findOneOrFail: jest.fn().mockResolvedValue({
+      findOne: jest.fn().mockResolvedValue({
         id: 'session-id',
         userId: 'user-id',
         scenarioId: 'cafeteria',
         difficulty: 'easy',
+        status: 'active',
       }),
       update: jest.fn(),
     } as unknown as Repository<Session>;
@@ -90,5 +91,32 @@ describe('ChatService', () => {
     );
     expect(events.at(-2)?.type).toBe('scorecard');
     expect(events.at(-1)).toEqual({ type: 'done', data: 'ok' });
+  });
+
+  it('does not accept messages after session completion', async () => {
+    const config = {
+      get: jest.fn((key: string) =>
+        key === 'USE_MOCK_OPENAI' ? 'true' : 'test-key',
+      ),
+    } as unknown as ConfigService;
+    const scoring = {
+      scoreMessage: jest.fn(),
+    } as unknown as ScoringService;
+    const sessionRepo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: 'session-id',
+        userId: 'user-id',
+        status: 'completed',
+      }),
+    } as unknown as Repository<Session>;
+    const messageRepo = {
+      find: jest.fn(),
+      save: jest.fn(),
+    } as unknown as Repository<Message>;
+    const service = new ChatService(config, scoring, sessionRepo, messageRepo);
+
+    await expect(
+      service.processMessage('session-id', 'Otro mensaje', 'user-id'),
+    ).rejects.toThrow('Session is no longer active');
   });
 });

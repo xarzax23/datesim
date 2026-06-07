@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
@@ -33,9 +37,15 @@ export class ChatService {
     userContent: string,
     userId: string,
   ): Promise<Observable<MessageEvent>> {
-    const session = await this.sessionRepo.findOneOrFail({
+    const session = await this.sessionRepo.findOne({
       where: { id: sessionId, userId },
     });
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+    if (session.status !== 'active') {
+      throw new BadRequestException('Session is no longer active');
+    }
 
     // Get recent messages for context window (last 10 turns)
     const recentMessages = await this.messageRepo.find({

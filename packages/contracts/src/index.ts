@@ -41,6 +41,7 @@ export interface SessionResponse {
 }
 
 export type SessionsResponse = SessionResponse[];
+export type CompleteSessionResponse = SessionResponse;
 
 // Messages / Turn
 

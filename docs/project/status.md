@@ -34,13 +34,15 @@ Implemented:
 - chat service with SSE streaming design
 - scoring service with structured JSON result
 - basic rejection flow that updates session status to `rejected`
+- explicit session completion endpoint with persisted average score
+- terminal-state protection that rejects new messages after completion or rejection
 
 Partial:
 
 - scoring dimensions are simpler than the longer product vision
 - scene direction logic exists only as lightweight steering in chat flow
 - production-grade moderation path is not yet defined
-- completed-session lifecycle is not fully modeled in user-facing UX
+- completed-session summary remains intentionally basic until Block 2
 
 Missing:
 
@@ -61,12 +63,13 @@ Implemented:
 - SSE parsing for `delta`, `scorecard`, `done`, and `error`
 - Riverpod chat state for streaming, errors, scorecard, and rejected session state
 - scorecard display in easy mode
+- explicit practice completion with confirmation, persisted result, terminal banner, and disabled input
 - tests around scorecard parsing/display and chat state transitions
 
 Partial:
 
 - rejected/done UX is MVP-basic and still needs product polish
-- session lifecycle UI is not complete beyond active/rejected chat behavior
+- completed/rejected summary UX still needs the richer Block 2 view
 - backend integration still needs one real OpenAI-backed device validation
 
 Missing:
@@ -98,6 +101,7 @@ Partial:
 - Firebase Auth Emulator is configured for local email/password testing without Google sign-in
 - a fictitious email user can authenticate, load scenarios, create a persisted session, and open the chat from Android
 - local fallback mode is verified from Android and now derives varied heuristic scores and feedback from each message while OpenAI has no quota
+- normal completion is verified from Android and PostgreSQL: the latest device session persisted as `completed` with its calculated overall score
 
 Missing:
 
@@ -114,8 +118,7 @@ The project is still in:
 The practical focus is no longer creating the first pass of mobile services; that work is present and the local Android flow is verified. The focus now is:
 
 1. validate one complete OpenAI-backed streaming conversation turn
-2. define and implement the normal `completed` session lifecycle
-3. then move to session summary/history UX
+2. then move to session summary/history UX
 
 ## Immediate Next Step
 
@@ -126,7 +129,6 @@ Highest-value next block of work inside Block 1:
 Goals:
 
 - run a real end-to-end chat-turn smoke test with OpenAI configured
-- define how active sessions become `completed` in backend, contracts, and Flutter
 - preserve focused tests for parsing and state-transition gaps
 - keep public scenario payloads free of `systemPrompt`
 
@@ -145,7 +147,6 @@ Suggested owner sequence:
 - contracts can drift again if future backend/mobile changes do not update `packages/contracts`
 - the real OpenAI-backed response still needs an emulator smoke test with available API quota
 - the recovered OpenAI key is valid but currently returns `insufficient_quota`
-- active sessions currently have no normal persisted `completed` transition
 
 ## Questions This File Should Answer Quickly
 
