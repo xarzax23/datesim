@@ -32,6 +32,8 @@ coverage/
 
 # Local diagnostics
 apps/flutter_app/datesim-*.png
+firebase-debug.log
+ui-debug.log
 
 # Secrets
 *.keystore

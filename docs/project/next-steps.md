@@ -2,7 +2,7 @@
 
 ## Current Focus
 
-Finish and verify the first real end-to-end MVP flow:
+Close Block 1 with one real OpenAI-backed turn while preserving the fully working local fallback flow:
 
 1. load scenarios from backend
 2. create a session from mobile
@@ -10,7 +10,8 @@ Finish and verify the first real end-to-end MVP flow:
 4. receive SSE streaming responses
 5. render scorecard when applicable
 6. handle session end states
-7. align shared contracts so backend and mobile do not drift
+7. persist rejection and session state
+8. align shared contracts so backend and mobile do not drift
 
 ## Current Block
 
@@ -24,8 +25,11 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 - Implemented in code: scenario loading, session creation, chat POST, SSE parsing, Riverpod chat state, home-to-chat routing, scorecard rendering for easy mode, and basic rejected state handling.
 - Implemented after delegation: mobile `GET /sessions` service/provider and shared contracts alignment.
-- Partial: completed-session UX and authenticated chat smoke test.
-- Blocker/risk: Android SDK/Android Studio is not installed, so Android emulator/device builds are not ready yet.
+- Partial: completed-session lifecycle/UX and a complete OpenAI-backed streaming chat turn.
+- Environment ready: Android SDK 36, the `DateSim_API_36` emulator, PostgreSQL 17, Firebase Auth Emulator, and the local backend are running on this computer.
+- Verified locally: a fictitious email user authenticates, loads scenarios, creates a persisted session, sends messages, receives streamed responses and scorecards, and reaches a persisted rejected state from Android.
+- Blocker/risk: the recovered `OPENAI_API_KEY` is valid but currently has no available quota; local fallback mode provides content-aware heuristic scoring for UI/SSE testing.
+- Repository checkpoint completed: the restored environment, auth, backend fixes, local fallback, tests, and planning updates are consolidated in Git.
 
 #### Tasks
 
@@ -68,9 +72,28 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
   - Commands: `flutter test`, `flutter analyze`
 - [ ] Run real end-to-end smoke test with Firebase, PostgreSQL, and OpenAI environment configured
   - Owner: backend-api-developer + mobile-flutter-developer + qa-release-engineer
+  - Blocked: the recovered OpenAI key currently returns `insufficient_quota`
 - [x] Run local backend smoke test for database boot, Swagger, public scenarios, and protected route auth
   - Owner: backend-api-developer + qa-release-engineer
   - Result: backend runs on `http://localhost:3000`, Swagger returns 200, `/api/v1/scenarios` returns public scenario data, `/api/v1/sessions` returns 401 without bearer token
+- [x] Build, install, and launch the Android app in a local emulator
+  - Owner: mobile-flutter-developer + qa-release-engineer
+  - Result: `DateSim_API_36` boots, DateSim opens on the login screen, and the emulator reaches the backend at `10.0.2.2:3000`
+- [x] Configure local email/password authentication without Google sign-in
+  - Owner: mobile-flutter-developer + qa-release-engineer
+  - Result: Firebase Auth Emulator accepts the fictitious test account and the Flutter app restores its authenticated state
+- [x] Verify authenticated session creation from the Android emulator
+  - Owner: backend-api-developer + mobile-flutter-developer + qa-release-engineer
+  - Result: selecting `Encuentro en la cafetería` persists the user/session with internal UUIDs and opens the chat with its initial message
+- [x] Verify one complete local fallback chat turn from the Android emulator
+  - Owner: backend-api-developer + mobile-flutter-developer + qa-release-engineer
+  - Result: messages receive streamed `delta` events, varied heuristic scorecards based on their content, and `done`; Flutter renders the response and feedback
+- [x] Verify rejected session behavior from the Android emulator
+  - Owner: backend-api-developer + mobile-flutter-developer + qa-release-engineer
+  - Result: hostile or unsafe responses receive low scores, emit `done: rejected`, persist session status `rejected`, show the end-state banner, and disable further input
+- [ ] Define and implement the normal `completed` session lifecycle
+  - Owner: product-ux-designer + backend-api-developer + contracts-integration + mobile-flutter-developer
+  - Scope: decide the completion trigger, persist `completed`, expose the terminal event to Flutter, and present a clear completed state
 
 #### Definition Of Done
 
@@ -82,6 +105,7 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 - If the session is rejected, the UI reflects it and disables further input.
 - Shared contracts match the backend/mobile runtime shape.
 - Focused tests cover SSE parsing, scorecard parsing, rejected state, and session service behavior.
+- A real OpenAI-backed turn is verified with local fallback disabled.
 
 ## Agent Delegation
 
@@ -96,16 +120,16 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 ## Immediate Execution Order
 
-1. backend-api-developer: replace local placeholder `OPENAI_API_KEY` and `FIREBASE_PROJECT_ID` with real environment values.
-2. mobile-flutter-developer: run the app against the local backend, preferably Android once SDK is installed.
-3. qa-release-engineer: perform one real end-to-end smoke test and document any failures.
-4. delivery-manager: move to Block 2 only after one real end-to-end smoke test.
+1. backend-api-developer: restore OpenAI API quota or provide another funded key.
+2. qa-release-engineer: repeat the verified turn with local fallback disabled and confirm the real model response.
+3. product-ux-designer + backend-api-developer + contracts-integration: define the normal `completed` lifecycle.
+4. delivery-manager: close Block 1 and start Block 2 after the real model turn and completed-lifecycle contract are verified.
 
 ## Next Block After That
 
 ### Block 2 - Session UX Completion
 
-- [ ] Session summary UI
+- [ ] Session summary UI for completed/rejected sessions
 - [ ] List past sessions
 - [ ] Basic progression/history screen
 - [ ] Cleaner error and retry states in chat
@@ -119,10 +143,11 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 ## Open Risks
 
-- SSE handling in Flutter needs cancellation and malformed-event behavior verified.
-- Scorecard payload shape must be aligned between backend, mobile, and shared contracts.
+- SSE handling in Flutter still needs explicit cancellation behavior.
+- Malformed scorecard events are covered; malformed transport lines are ignored, but the user-facing retry path remains basic.
 - Contracts package is aligned with the current runtime shape, but still needs a mature workflow before it becomes the long-term source of truth.
-- Android emulator/device validation is blocked until Android SDK/Android Studio is installed.
+- Available OpenAI API quota is required before validating the complete real streamed chat turn.
+- Active sessions do not yet have a normal path to persisted `completed` status.
 
 ## Update Rule
 

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'core/config.dart';
 import 'firebase_options.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -13,24 +15,25 @@ Future<void> main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+    if (firebaseAuthEmulatorEnabled) {
+      await FirebaseAuth.instance.useAuthEmulator(
+        firebaseAuthEmulatorHost,
+        firebaseAuthEmulatorPort,
+      );
+    }
   } catch (e) {
     firebaseInitError = e.toString();
   }
 
   runApp(
-    ProviderScope(
-      child: DateSimApp(firebaseInitError: firebaseInitError),
-    ),
+    ProviderScope(child: DateSimApp(firebaseInitError: firebaseInitError)),
   );
 }
 
 class DateSimApp extends ConsumerWidget {
   final String? firebaseInitError;
 
-  const DateSimApp({
-    super.key,
-    this.firebaseInitError,
-  });
+  const DateSimApp({super.key, this.firebaseInitError});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

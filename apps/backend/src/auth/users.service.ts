@@ -10,7 +10,11 @@ export class UsersService {
     private usersRepo: Repository<User>,
   ) {}
 
-  async findOrCreate(firebaseUid: string, email?: string, displayName?: string): Promise<User> {
+  async findOrCreate(
+    firebaseUid: string,
+    email?: string,
+    displayName?: string,
+  ): Promise<User> {
     let user = await this.usersRepo.findOne({ where: { firebaseUid } });
     if (!user) {
       user = this.usersRepo.create({ firebaseUid, email, displayName });

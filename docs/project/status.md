@@ -67,7 +67,7 @@ Partial:
 
 - rejected/done UX is MVP-basic and still needs product polish
 - session lifecycle UI is not complete beyond active/rejected chat behavior
-- backend integration still needs real environment/device validation
+- backend integration still needs one real OpenAI-backed device validation
 
 Missing:
 
@@ -92,8 +92,12 @@ Partial:
 - backend unit tests and backend build pass after `npm ci`
 - Flutter SDK 3.32.7 is installed locally and `flutter analyze` / `flutter test` pass
 - focused Flutter regression coverage exists for chat event parsing, scorecard parsing/display, chat state, and session parsing
-- Local backend runs against Docker PostgreSQL on port `55432`; Swagger and public scenario endpoint are verified
-- Android SDK/Android Studio is not installed yet, so Android emulator/device builds are not ready
+- Local backend runs against PostgreSQL 17 on port `55432`; Swagger and public scenario endpoint are verified
+- Android SDK 36, Android Studio, AEHD acceleration, and the `DateSim_API_36` emulator are configured locally
+- the Android debug APK builds, installs, and opens successfully in the emulator
+- Firebase Auth Emulator is configured for local email/password testing without Google sign-in
+- a fictitious email user can authenticate, load scenarios, create a persisted session, and open the chat from Android
+- local fallback mode is verified from Android and now derives varied heuristic scores and feedback from each message while OpenAI has no quota
 
 Missing:
 
@@ -107,11 +111,11 @@ The project is still in:
 
 **Block 1 - Mobile Backend Integration**
 
-The practical focus is no longer creating the first pass of mobile services; that work is mostly present. The focus now is:
+The practical focus is no longer creating the first pass of mobile services; that work is present and the local Android flow is verified. The focus now is:
 
-1. validate the authenticated end-to-end conversation flow in a prepared local or CI environment
-2. add focused regression coverage where smoke testing exposes gaps
-3. then move to session UX completion
+1. validate one complete OpenAI-backed streaming conversation turn
+2. define and implement the normal `completed` session lifecycle
+3. then move to session summary/history UX
 
 ## Immediate Next Step
 
@@ -121,23 +125,27 @@ Highest-value next block of work inside Block 1:
 
 Goals:
 
-- run a real end-to-end smoke test with Firebase, PostgreSQL, and OpenAI environment configured
-- add focused tests for any uncovered parsing or state-transition gaps
+- run a real end-to-end chat-turn smoke test with OpenAI configured
+- define how active sessions become `completed` in backend, contracts, and Flutter
+- preserve focused tests for parsing and state-transition gaps
 - keep public scenario payloads free of `systemPrompt`
 
 Suggested owner sequence:
 
-1. `qa-release-engineer`
+1. `delivery-manager`
 2. `backend-api-developer`
-3. `mobile-flutter-developer`
-4. `delivery-manager`
+3. `qa-release-engineer`
+4. `product-ux-designer`
+5. `contracts-integration`
+6. `mobile-flutter-developer`
 
 ## Current Risks
 
 - product docs can become stale because implementation has moved ahead of the old checklist
 - contracts can drift again if future backend/mobile changes do not update `packages/contracts`
-- Android emulator/device validation requires Android SDK/Android Studio
-- OpenAI/Firebase/PostgreSQL paths still require environment-backed integration validation
+- the real OpenAI-backed response still needs an emulator smoke test with available API quota
+- the recovered OpenAI key is valid but currently returns `insufficient_quota`
+- active sessions currently have no normal persisted `completed` transition
 
 ## Questions This File Should Answer Quickly
 

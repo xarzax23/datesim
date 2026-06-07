@@ -2,8 +2,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/config.dart';
 import '../data/auth_service.dart';
 import '../providers/auth_providers.dart';
+import 'email_auth_sheet.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -34,6 +36,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _showEmailAuth(AuthService auth) {
+    return showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => EmailAuthSheet(
+        onSignIn: auth.signInWithEmail,
+        onSignUp: auth.signUpWithEmail,
+      ),
+    );
   }
 
   @override
@@ -67,24 +80,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               if (_loading)
                 const CircularProgressIndicator()
               else ...[
-                _SocialButton(
-                  label: 'Continuar con Google',
-                  icon: Icons.g_mobiledata,
-                  onPressed: () => _handleAuth(auth.signInWithGoogle),
-                ),
-                const SizedBox(height: 12),
-                if (Platform.isIOS) ...[
+                if (!firebaseAuthEmulatorEnabled) ...[
                   _SocialButton(
-                    label: 'Continuar con Apple',
-                    icon: Icons.apple,
-                    onPressed: () => _handleAuth(auth.signInWithApple),
+                    label: 'Continuar con Google',
+                    icon: Icons.g_mobiledata,
+                    onPressed: () => _handleAuth(auth.signInWithGoogle),
+                  ),
+                  const SizedBox(height: 12),
+                  if (Platform.isIOS) ...[
+                    _SocialButton(
+                      label: 'Continuar con Apple',
+                      icon: Icons.apple,
+                      onPressed: () => _handleAuth(auth.signInWithApple),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ] else ...[
+                  Text(
+                    'Entorno local de pruebas',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.primary,
+                    ),
                   ),
                   const SizedBox(height: 12),
                 ],
                 OutlinedButton.icon(
-                  onPressed: () {
-                    // TODO: navegar a pantalla de email/password
-                  },
+                  onPressed: () => _showEmailAuth(auth),
                   icon: const Icon(Icons.email_outlined),
                   label: const Text('Continuar con email'),
                   style: OutlinedButton.styleFrom(

@@ -6,11 +6,25 @@ import {
 } from '@nestjs/common';
 import * as admin from 'firebase-admin';
 import { Request } from 'express';
+import { UsersService } from '../../auth/users.service';
+
+export interface AuthenticatedUser {
+  id: string;
+  firebaseUid: string;
+  email?: string;
+  displayName?: string;
+}
+
+export type AuthenticatedRequest = Request & {
+  firebaseUser?: AuthenticatedUser;
+};
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
+  constructor(private readonly usersService: UsersService) {}
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const authHeader = request.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
@@ -18,12 +32,29 @@ export class FirebaseAuthGuard implements CanActivate {
     }
 
     const token = authHeader.split('Bearer ')[1];
+    let decoded: admin.auth.DecodedIdToken;
+
     try {
-      const decoded = await admin.auth().verifyIdToken(token);
-      (request as any).firebaseUser = decoded;
-      return true;
+      decoded = await admin.auth().verifyIdToken(token);
     } catch {
       throw new UnauthorizedException('Invalid token');
     }
+
+    const displayName =
+      typeof decoded.name === 'string' ? decoded.name : undefined;
+    const user = await this.usersService.findOrCreate(
+      decoded.uid,
+      decoded.email,
+      displayName,
+    );
+
+    request.firebaseUser = {
+      id: user.id,
+      firebaseUid: decoded.uid,
+      email: user.email,
+      displayName: user.displayName,
+    };
+
+    return true;
   }
 }

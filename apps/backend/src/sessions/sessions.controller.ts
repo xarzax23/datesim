@@ -1,14 +1,9 @@
-import {
-  Controller,
-  Post,
-  Get,
-  Body,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { FirebaseAuthGuard } from '../common/guards/firebase-auth.guard';
+import type { AuthenticatedUser } from '../common/guards/firebase-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Session } from '../entities';
 import { IsNotEmpty, IsString, IsIn } from 'class-validator';
@@ -37,10 +32,10 @@ export class SessionsController {
   @ApiOperation({ summary: 'Create a new practice session' })
   async create(
     @Body() dto: CreateSessionDto,
-    @CurrentUser() user: { uid: string },
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     const session = this.sessionRepo.create({
-      userId: user.uid,
+      userId: user.id,
       scenarioId: dto.scenarioId,
       difficulty: dto.difficulty,
       status: 'active',
@@ -50,9 +45,9 @@ export class SessionsController {
 
   @Get()
   @ApiOperation({ summary: 'List user sessions' })
-  async list(@CurrentUser() user: { uid: string }) {
+  async list(@CurrentUser() user: AuthenticatedUser) {
     return this.sessionRepo.find({
-      where: { userId: user.uid },
+      where: { userId: user.id },
       order: { createdAt: 'DESC' },
       take: 20,
     });

@@ -12,3 +12,15 @@ const String localAuthToken = String.fromEnvironment(
   'LOCAL_AUTH_TOKEN',
   defaultValue: 'datesim-local-dev-token',
 );
+
+const String firebaseAuthEmulatorHost = String.fromEnvironment(
+  'FIREBASE_AUTH_EMULATOR_HOST',
+  defaultValue: '',
+);
+
+const int firebaseAuthEmulatorPort = int.fromEnvironment(
+  'FIREBASE_AUTH_EMULATOR_PORT',
+  defaultValue: 9099,
+);
+
+const bool firebaseAuthEmulatorEnabled = firebaseAuthEmulatorHost != '';

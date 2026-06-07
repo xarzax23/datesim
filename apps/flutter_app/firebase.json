@@ -1,1 +1,33 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"datesim-4a434","appId":"1:317467092059:android:705dce7ccab9c55e2a4b7e","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"datesim-4a434","configurations":{"android":"1:317467092059:android:705dce7ccab9c55e2a4b7e","ios":"1:317467092059:ios:dbf4ff6cc396c2e92a4b7e","windows":"1:317467092059:web:3ed338a3b8cba7342a4b7e"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "datesim-4a434",
+          "appId": "1:317467092059:android:705dce7ccab9c55e2a4b7e",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "datesim-4a434",
+          "configurations": {
+            "android": "1:317467092059:android:705dce7ccab9c55e2a4b7e",
+            "ios": "1:317467092059:ios:dbf4ff6cc396c2e92a4b7e",
+            "windows": "1:317467092059:web:3ed338a3b8cba7342a4b7e"
+          }
+        }
+      }
+    }
+  },
+  "emulators": {
+    "auth": {
+      "port": 9099
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
+    "singleProjectMode": true
+  }
+}
