@@ -5,6 +5,7 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/home/models/scenario.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../core/config.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authState = ref.watch(authStateProvider);
@@ -12,7 +13,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
-      final isLoggedIn = authState.value != null;
+      final isLoggedIn = localAuthEnabled || authState.value != null;
       final isLoginRoute = state.matchedLocation == '/login';
 
       if (!isLoggedIn && !isLoginRoute) return '/login';

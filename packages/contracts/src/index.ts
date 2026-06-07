@@ -1,19 +1,27 @@
-// ── Scenarios ──────────────────────────────────────────────
+// Scenarios
 
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
-export interface Scenario {
+export interface PublicScenario {
   id: string;
   name: string;
   description: string;
   difficulty: Difficulty;
-  systemPrompt: string;
   characterName: string;
   characterBio: string;
   openingMessage: string;
 }
 
-// ── Sessions ──────────────────────────────────────────────
+export type Scenario = PublicScenario;
+
+export interface ScenarioWithSystemPrompt extends PublicScenario {
+  systemPrompt: string;
+}
+
+export type ScenariosResponse = PublicScenario[];
+export type ScenarioResponse = PublicScenario;
+
+// Sessions
 
 export type SessionStatus = 'active' | 'completed' | 'rejected' | 'abandoned';
 
@@ -27,64 +35,64 @@ export interface SessionResponse {
   scenarioId: string;
   difficulty: Difficulty;
   status: SessionStatus;
-  overallScore: number | null;
+  overallScore?: number | null;
   createdAt: string;
-  updatedAt: string;
+  updatedAt?: string;
 }
 
-// ── Messages / Turn ───────────────────────────────────────
+export type SessionsResponse = SessionResponse[];
 
-export type MessageRole = 'user' | 'assistant' | 'system';
+// Messages / Turn
+
+export type MessageRole = 'user' | 'assistant';
 
 export interface SendMessageRequest {
   content: string;
 }
 
+export type ScorecardDecision = 'continue' | 'cool_down' | 'reject';
+
 export interface Scorecard {
-  fluency: number;     // 0-10
-  empathy: number;     // 0-10
-  initiative: number;  // 0-10
-  clarity: number;     // 0-10
-  safety: number;      // 0-10
-  overall: number;     // 0-10 average
-  decision: 'continue' | 'cool_down' | 'reject';
-  feedback?: string;
+  fluency: number;
+  empathy: number;
+  initiative: number;
+  clarity: number;
+  safety: number;
+  overall: number;
+  decision: ScorecardDecision;
+  reason: string;
 }
 
-/** SSE event types sent during a chat turn */
-export type ChatEventType = 'token' | 'scorecard' | 'done' | 'error';
+export type ChatEventType = 'delta' | 'scorecard' | 'done' | 'error';
+export type ChatDoneStatus = 'ok' | 'rejected';
 
-export interface ChatEventToken {
-  type: 'token';
-  data: string; // partial token
+export interface ChatEventDelta {
+  type: 'delta';
+  data: string;
 }
 
 export interface ChatEventScorecard {
   type: 'scorecard';
-  data: Scorecard;
+  data: string; // JSON-encoded Scorecard in the current SSE payload.
 }
 
 export interface ChatEventDone {
   type: 'done';
-  data: {
-    messageId: string;
-    fullContent: string;
-    turnIndex: number;
-  };
+  data: ChatDoneStatus;
 }
 
 export interface ChatEventError {
   type: 'error';
-  data: { message: string };
+  data: string;
 }
 
 export type ChatEvent =
-  | ChatEventToken
+  | ChatEventDelta
   | ChatEventScorecard
   | ChatEventDone
   | ChatEventError;
 
-// ── User ──────────────────────────────────────────────────
+// User
 
 export interface UserProfile {
   id: string;

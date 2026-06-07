@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:http/http.dart' as http;
+import '../../../core/auth_headers.dart';
 import '../../../core/config.dart';
 import '../models/chat_event.dart';
 
@@ -10,7 +11,7 @@ class ChatService {
   final FirebaseAuth _auth;
 
   Stream<ChatEvent> sendMessage(String sessionId, String content) async* {
-    final token = await _auth.currentUser?.getIdToken();
+    final headers = await authHeaders(_auth);
     final client = http.Client();
     try {
       final request = http.Request(
@@ -19,7 +20,7 @@ class ChatService {
       );
       request.headers['Content-Type'] = 'application/json';
       request.headers['Accept'] = 'text/event-stream';
-      if (token != null) request.headers['Authorization'] = 'Bearer $token';
+      request.headers.addAll(headers);
       request.body = jsonEncode({'content': content});
 
       final response = await client.send(request);

@@ -1,85 +1,150 @@
 ---
 name: datesim-api-contracts
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: Contract and integration guidance for DateSim backend, Flutter mobile app, shared TypeScript contracts, and SSE chat events. Use when Codex must align API routes, DTOs, TypeScript interfaces, Dart models, Riverpod services, Firebase-authenticated calls, scorecard payloads, session/scenario shapes, or backend-mobile mismatches such as event names, encoded JSON, status values, or field naming.
 ---
 
-# Datesim Api Contracts
+# DateSim API Contracts
 
-## Overview
+## Purpose
 
-[TODO: 1-2 sentences explaining what this skill enables]
+Use this skill to prevent drift between backend producers, Flutter consumers, and `packages/contracts`. Contract-visible changes must be updated across all affected layers, not only in one file.
 
-## Structuring This Skill
+## Sources Of Truth
 
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
+Read the narrowest relevant set:
 
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" -> "Reading" -> "Creating" -> "Editing"
-- Structure: ## Overview -> ## Workflow Decision Tree -> ## Step 1 -> ## Step 2...
+- `docs/project/status.md`
+- `docs/project/next-steps.md`
+- `.github/agents/contracts-integration.agent.md`
+- `packages/contracts/src/index.ts`
+- `apps/backend/src/**/controller.ts`
+- `apps/backend/src/**/service.ts`
+- `apps/backend/src/**/dto/*.ts`
+- `apps/backend/src/entities/*.ts`
+- `apps/flutter_app/lib/features/**/models/*.dart`
+- `apps/flutter_app/lib/features/**/data/*.dart`
+- `apps/flutter_app/lib/features/**/providers/*.dart`
+- nearest backend and Flutter tests
 
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" -> "Merge PDFs" -> "Split PDFs" -> "Extract Text"
-- Structure: ## Overview -> ## Quick Start -> ## Task Category 1 -> ## Task Category 2...
+## Current MVP Contract Surface
 
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" -> "Colors" -> "Typography" -> "Features"
-- Structure: ## Overview -> ## Guidelines -> ## Specifications -> ## Usage...
+Check implementation before editing, but Block 1 revolves around:
 
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" -> numbered capability list
-- Structure: ## Overview -> ## Core Capabilities -> ### 1. Feature -> ### 2. Feature...
+- `GET /api/v1/scenarios`
+- `GET /api/v1/scenarios/:id`
+- `POST /api/v1/sessions`
+- `GET /api/v1/sessions`
+- `POST /api/v1/sessions/:sessionId/messages`
 
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
+All mobile requests that need user identity should send Firebase bearer auth when available.
 
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
+## Known Drift To Resolve
 
-## [TODO: Replace with the first main section based on chosen structure]
+Before declaring Block 1 complete, verify and align these known mismatch risks:
 
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
+- SSE event name: shared contracts may say `token`, while backend/mobile use `delta`.
+- Scorecard text field: shared contracts may say `feedback`, while backend/mobile use `reason`.
+- Scorecard payload shape: backend may encode scorecard JSON inside `data`, while contracts may model it as an object.
+- Done event shape: backend/mobile may use `data: "ok"` or `data: "rejected"`, while contracts may model a richer object.
+- Public scenario response must not expose `systemPrompt`.
 
-## Resources (optional)
+Do not fix only the documentation. Align producers, consumers, contracts, and tests together unless the mismatch is intentionally documented as temporary.
 
-Create only the resource directories this skill actually needs. Delete this section if no resources are required.
+## Canonicalization Workflow
 
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
+1. Find all producers and consumers:
+   - backend controller/service/DTO/entity
+   - `packages/contracts`
+   - Flutter model/service/provider
+   - tests
+2. Identify the runtime shape currently used by the app.
+3. Decide the canonical shape for the current MVP, preserving existing working behavior unless there is a concrete bug.
+4. Update in this order:
+   - `packages/contracts/src/index.ts`
+   - backend DTO/event producer
+   - Flutter parser/model/service
+   - tests for parsing, state transitions, and endpoint behavior
+   - planning docs if the change alters project status
+5. Run focused validation.
 
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
+## Preferred Shapes
 
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
+Use explicit names and typed data. Avoid adding new event types unless the UI needs them.
 
-**Note:** Scripts may be executed without loading into context, but can still be read by Codex for patching or environment adjustments.
+### Scenario
 
-### references/
-Documentation and reference material intended to be loaded into context to inform Codex's process and thinking.
+Public mobile scenario fields:
 
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
+- `id`
+- `name`
+- `description`
+- `difficulty`
+- `characterName`
+- `characterBio`
+- `openingMessage`
 
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Codex should reference while working.
+Private backend-only field:
 
-### assets/
-Files not intended to be loaded into context, but rather used within the output Codex produces.
+- `systemPrompt`
 
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
+### Session
 
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
+Session status values:
 
----
+- `active`
+- `completed`
+- `rejected`
+- `abandoned`
 
-**Not every skill requires all three types of resources.**
+Create session request:
+
+- `scenarioId`
+- `difficulty`
+
+### Scorecard
+
+Current MVP dimensions:
+
+- `fluency`
+- `empathy`
+- `initiative`
+- `clarity`
+- `safety`
+- `overall`
+- `decision`
+- `reason`
+
+Decision values:
+
+- `continue`
+- `cool_down`
+- `reject`
+
+### Chat SSE Events
+
+Keep event parsing explicit in Flutter. The current app expects logical events for:
+
+- assistant text chunk
+- scorecard
+- done
+- error
+
+If using `delta` as the chunk event, ensure contracts also say `delta`. If choosing `token`, update backend and mobile together. Do not leave both names active without a compatibility reason.
+
+## Coordination Rules
+
+- Use `backend-api-developer` for NestJS route, auth, validation, persistence, and SSE producer changes.
+- Use `mobile-flutter-developer` for Dart models, services, Riverpod state, and UI consumption.
+- Use `llm-scenarios-scoring` for scorecard semantics, prompt behavior, rejection behavior, or scenario content.
+- Use `qa-release-engineer` for regression tests and CI readiness.
+- Use `product-ux-designer` when payload changes affect visible states or Spanish copy.
+
+## Validation
+
+Use the smallest useful set:
+
+- backend: `npm run test`, `npm run test:e2e`, `npm run build`
+- contracts: `npm run build`
+- Flutter: `flutter test`, `flutter analyze`
+
+If validation cannot run because dependencies or SDKs are missing, report the exact command and missing executable.

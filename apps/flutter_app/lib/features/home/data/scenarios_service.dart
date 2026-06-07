@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/auth_headers.dart';
 import '../models/scenario.dart';
 
 class ScenariosService {
@@ -11,13 +12,11 @@ class ScenariosService {
   final FirebaseAuth _auth;
 
   Future<List<Scenario>> getScenarios() async {
-    final token = await _auth.currentUser?.getIdToken();
+    final headers = await authHeaders(_auth);
     try {
       final response = await _dio.get<List<dynamic>>(
         '/scenarios',
-        options: Options(
-          headers: {if (token != null) 'Authorization': 'Bearer $token'},
-        ),
+        options: Options(headers: headers),
       );
       final data = response.data ?? [];
       return data

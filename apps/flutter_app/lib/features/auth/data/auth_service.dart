@@ -4,11 +4,20 @@ import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthService {
   final FirebaseAuth _auth;
+  static Future<void>? _googleInitFuture;
 
   AuthService(this._auth);
 
   Future<UserCredential> signInWithGoogle() async {
-    final googleAccount = await GoogleSignIn.instance.authenticate();
+    final googleSignIn = GoogleSignIn.instance;
+    _googleInitFuture ??= googleSignIn.initialize();
+    await _googleInitFuture;
+
+    if (!googleSignIn.supportsAuthenticate()) {
+      throw Exception('Google Sign-In is not available on this platform');
+    }
+
+    final googleAccount = await googleSignIn.authenticate();
     final idToken = googleAccount.authentication.idToken;
     if (idToken == null) throw Exception('Missing Google ID token');
 

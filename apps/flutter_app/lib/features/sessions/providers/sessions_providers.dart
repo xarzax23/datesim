@@ -16,6 +16,10 @@ final sessionsServiceProvider = Provider<SessionsService>((ref) {
   );
 });
 
+final sessionsProvider = FutureProvider<List<Session>>((ref) {
+  return ref.watch(sessionsServiceProvider).getSessions();
+});
+
 /// Holds the state of a session creation attempt.
 /// Use [CreateSessionNotifier.create] to trigger a new session.
 class CreateSessionNotifier extends AsyncNotifier<Session?> {
@@ -25,7 +29,9 @@ class CreateSessionNotifier extends AsyncNotifier<Session?> {
   Future<void> create(String scenarioId, String difficulty) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(
-      () => ref.read(sessionsServiceProvider).createSession(scenarioId, difficulty),
+      () => ref
+          .read(sessionsServiceProvider)
+          .createSession(scenarioId, difficulty),
     );
   }
 }

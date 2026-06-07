@@ -25,109 +25,132 @@ DateSim is a mobile-first social skills training app focused on simulated dating
 ### Backend
 
 Implemented:
+
 - Modular NestJS backend structure
 - entities for user, session, and message
 - Firebase auth guard and user bootstrap flow
 - scenarios module with initial hardcoded scenarios
+- sessions module to create and list sessions
 - chat service with SSE streaming design
 - scoring service with structured JSON result
-- sessions module to create and list sessions
+- basic rejection flow that updates session status to `rejected`
 
 Partial:
+
 - scoring dimensions are simpler than the longer product vision
 - scene direction logic exists only as lightweight steering in chat flow
-- contracts package is not yet acting as the real source of truth
+- production-grade moderation path is not yet defined
+- completed-session lifecycle is not fully modeled in user-facing UX
 
 Missing:
-- stronger schema-based shared contracts
+
 - richer post-session feedback
 - progression/history features
-- production-grade moderation path
+- evals pipeline for prompts and scoring regressions
 
 ### Mobile App
 
 Implemented:
+
 - Flutter app structure with feature-first organization
 - auth flow scaffold with Firebase providers
 - login screen
-- home screen scaffold
-- chat screen scaffold
-- router with auth redirects
-- theme system
+- home screen connected to real scenarios endpoint
+- real session creation from scenario selection
+- chat screen connected to backend message endpoint
+- SSE parsing for `delta`, `scorecard`, `done`, and `error`
+- Riverpod chat state for streaming, errors, scorecard, and rejected session state
+- scorecard display in easy mode
+- tests around scorecard parsing/display and chat state transitions
 
 Partial:
-- chat screen is still partly mock-oriented
-- backend integration is not complete end-to-end
-- scenario loading and session creation are not fully connected to live backend data
+
+- rejected/done UX is MVP-basic and still needs product polish
+- session lifecycle UI is not complete beyond active/rejected chat behavior
+- backend integration still needs real environment/device validation
 
 Missing:
-- real SSE integration in chat flow
-- real session lifecycle in UI
-- scorecard display in easy mode
-- rejected/completed session UX
-- profile and progress surfaces
 
-### Repo / Tooling
+- session summary UI
+- past sessions list UI
+- profile and progress surfaces
+- production-ready retry/cancellation behavior for long SSE streams
+
+### Contracts / Tooling
 
 Implemented:
-- workspace customization structure for Copilot is in progress / partially present depending on branch state
-- CI workflow exists
-- project PDFs and higher-level planning have informed architecture decisions
+
+- `packages/contracts` exists with shared TypeScript types
+- CI workflow exists for backend and Flutter
+- agent role definitions exist under `.github/agents`
+- DateSim Codex skills exist under `.codex/skills`
+
+Partial:
+
+- shared contracts are aligned with the current runtime shape
+- contracts package now declares TypeScript locally and builds with `npm run build`
+- backend unit tests and backend build pass after `npm ci`
+- Flutter SDK 3.32.7 is installed locally and `flutter analyze` / `flutter test` pass
+- focused Flutter regression coverage exists for chat event parsing, scorecard parsing/display, chat state, and session parsing
+- Local backend runs against Docker PostgreSQL on port `55432`; Swagger and public scenario endpoint are verified
+- Android SDK/Android Studio is not installed yet, so Android emulator/device builds are not ready
 
 Missing:
-- fully operational shared contracts workflow
-- evals pipeline for prompts
+
+- fully operational shared contracts workflow beyond the current aligned TypeScript types
+- contract regression tests across backend/mobile expectations
 - release automation maturity
 
 ## MVP Phase
 
-The project is in the stage between:
-- architecture and repo setup completed enough to start integration work
-- MVP feature completion still pending
+The project is still in:
 
-The current practical phase is:
-**connect the mobile app to the real backend and complete the first usable end-to-end conversation flow**.
+**Block 1 - Mobile Backend Integration**
+
+The practical focus is no longer creating the first pass of mobile services; that work is mostly present. The focus now is:
+
+1. validate the authenticated end-to-end conversation flow in a prepared local or CI environment
+2. add focused regression coverage where smoke testing exposes gaps
+3. then move to session UX completion
 
 ## Immediate Next Step
 
-Highest-value next block:
+Highest-value next block of work inside Block 1:
 
-### Block: Mobile ↔ Backend integration
+### Verification Before Block 2
 
 Goals:
-- load real scenarios from backend
-- create real sessions from mobile
-- send real messages from mobile
-- consume SSE response stream
-- render scorecard when applicable
 
-Suggested order:
-1. scenarios service in Flutter
-2. sessions service in Flutter
-3. chat API/SSE service in Flutter
-4. Riverpod providers for those services
-5. connect home screen to scenarios endpoint
-6. connect scenario selection to session creation
-7. connect chat screen to streaming endpoint
-8. handle done / rejected / scorecard events
+- run a real end-to-end smoke test with Firebase, PostgreSQL, and OpenAI environment configured
+- add focused tests for any uncovered parsing or state-transition gaps
+- keep public scenario payloads free of `systemPrompt`
+
+Suggested owner sequence:
+
+1. `qa-release-engineer`
+2. `backend-api-developer`
+3. `mobile-flutter-developer`
+4. `delivery-manager`
 
 ## Current Risks
 
-- product docs are ahead of the implementation in scoring sophistication
-- mobile UX can move faster than backend integration if not sequenced carefully
-- contracts can drift between backend and mobile if `packages/contracts` is not strengthened soon
+- product docs can become stale because implementation has moved ahead of the old checklist
+- contracts can drift again if future backend/mobile changes do not update `packages/contracts`
+- Android emulator/device validation requires Android SDK/Android Studio
+- OpenAI/Firebase/PostgreSQL paths still require environment-backed integration validation
 
 ## Questions This File Should Answer Quickly
 
 - Where are we right now?
 - What is already built?
+- What is still partial?
 - What is the next priority?
-- What is blocked or partial?
-- Which subsystem should be worked on next?
+- Which specialist agent should own the next task?
 
 ## Update Rule
 
 Update this file whenever one of these changes:
+
 - a major feature moves from partial to implemented
 - the current MVP block changes
 - a new blocker appears

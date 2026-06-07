@@ -25,6 +25,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text(e.message ?? 'Error de login')));
       }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo iniciar sesion: $e')),
+        );
+      }
     } finally {
       if (mounted) setState(() => _loading = false);
     }

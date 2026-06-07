@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/auth_headers.dart';
 import '../models/session.dart';
 
 class SessionsService {
@@ -10,15 +11,29 @@ class SessionsService {
   final Dio _dio;
   final FirebaseAuth _auth;
 
+  Future<List<Session>> getSessions() async {
+    final headers = await authHeaders(_auth);
+    try {
+      final response = await _dio.get<List<dynamic>>(
+        '/sessions',
+        options: Options(headers: headers),
+      );
+      final data = response.data ?? [];
+      return data
+          .map((e) => Session.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } on DioException catch (e) {
+      throw Exception(_friendlyError(e));
+    }
+  }
+
   Future<Session> createSession(String scenarioId, String difficulty) async {
-    final token = await _auth.currentUser?.getIdToken();
+    final headers = await authHeaders(_auth);
     try {
       final response = await _dio.post<Map<String, dynamic>>(
         '/sessions',
         data: {'scenarioId': scenarioId, 'difficulty': difficulty},
-        options: Options(
-          headers: {if (token != null) 'Authorization': 'Bearer $token'},
-        ),
+        options: Options(headers: headers),
       );
       return Session.fromJson(response.data!);
     } on DioException catch (e) {

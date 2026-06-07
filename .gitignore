@@ -19,6 +19,8 @@ node_modules/
 .env
 .env.*
 !.env.example
+*.local.log
+.local-*.log
 
 # OS
 .DS_Store
@@ -27,6 +29,9 @@ Thumbs.db
 # Build outputs
 dist/
 coverage/
+
+# Local diagnostics
+apps/flutter_app/datesim-*.png
 
 # Secrets
 *.keystore
