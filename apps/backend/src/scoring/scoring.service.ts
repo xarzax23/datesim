@@ -18,9 +18,11 @@ export interface ScorecardResult {
 export class ScoringService {
   private openai: OpenAI;
   private readonly useMockOpenAI: boolean;
+  private readonly openaiModel: string;
 
   constructor(private config: ConfigService) {
     this.useMockOpenAI = this.config.get<string>('USE_MOCK_OPENAI') === 'true';
+    this.openaiModel = this.config.get<string>('OPENAI_MODEL') ?? 'gpt-5-nano';
     this.openai = new OpenAI({
       apiKey: this.config.get<string>('OPENAI_API_KEY'),
     });
@@ -42,8 +44,9 @@ export class ScoringService {
       }),
     );
     const response = await this.openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: this.openaiModel,
       response_format: { type: 'json_object' },
+      reasoning_effort: 'minimal',
       messages: [
         {
           role: 'system',
@@ -51,14 +54,14 @@ export class ScoringService {
 Difficulty: ${difficulty}
 Metrics: fluency, empathy, initiative, clarity, safety
 Also determine: decision (continue/cool_down/reject) and reason.
+Write the reason in Spanish.
 Higher difficulty = stricter thresholds for "continue".
 JSON schema: {"fluency":number,"empathy":number,"initiative":number,"clarity":number,"safety":number,"overall":number,"decision":"continue"|"cool_down"|"reject","reason":"string"}`,
         },
         ...contextMessages,
         { role: 'user', content: userMessage },
       ],
-      temperature: 0.1,
-      max_tokens: 300,
+      max_completion_tokens: 300,
     });
 
     const raw = response.choices[0]?.message?.content ?? '{}';

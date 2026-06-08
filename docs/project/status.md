@@ -15,7 +15,7 @@ DateSim is a mobile-first social skills training app focused on simulated dating
 - Mobile: Flutter
 - Backend: NestJS
 - Auth: Firebase Auth
-- LLM: OpenAI GPT-4o-mini
+- LLM: OpenAI `gpt-5-nano` by default, configurable through `OPENAI_MODEL`
 - Database: PostgreSQL
 - Cloud target: GCP / Cloud Run
 - Payments target: RevenueCat + native IAP
@@ -36,6 +36,7 @@ Implemented:
 - basic rejection flow that updates session status to `rejected`
 - explicit session completion endpoint with persisted average score
 - terminal-state protection that rejects new messages after completion or rejection
+- configurable low-cost OpenAI model with minimal reasoning and bounded output
 
 Partial:
 
@@ -70,7 +71,6 @@ Partial:
 
 - rejected/done UX is MVP-basic and still needs product polish
 - completed/rejected summary UX still needs the richer Block 2 view
-- backend integration still needs one real OpenAI-backed device validation
 
 Missing:
 
@@ -100,7 +100,8 @@ Partial:
 - the Android debug APK builds, installs, and opens successfully in the emulator
 - Firebase Auth Emulator is configured for local email/password testing without Google sign-in
 - a fictitious email user can authenticate, load scenarios, create a persisted session, and open the chat from Android
-- local fallback mode is verified from Android and now derives varied heuristic scores and feedback from each message while OpenAI has no quota
+- local fallback mode remains available and derives varied heuristic scores and feedback without API spend
+- real OpenAI mode is verified from Android with `gpt-5-nano`, SSE streaming, contextual replies, and structured scorecards
 - normal completion is verified from Android and PostgreSQL: the latest device session persisted as `completed` with its calculated overall score
 
 Missing:
@@ -111,26 +112,27 @@ Missing:
 
 ## MVP Phase
 
-The project is still in:
+The project is now in:
 
-**Block 1 - Mobile Backend Integration**
+**Block 2 - Session UX Completion**
 
-The practical focus is no longer creating the first pass of mobile services; that work is present and the local Android flow is verified. The focus now is:
+Block 1 is complete: authentication, scenarios, session creation, real OpenAI chat streaming, scoring, rejection, and explicit completion are verified. The focus now is:
 
-1. validate one complete OpenAI-backed streaming conversation turn
-2. then move to session summary/history UX
+1. session summary UX for completed/rejected sessions
+2. past-session list and basic progression/history
+3. cleaner retry and SSE cancellation behavior
 
 ## Immediate Next Step
 
-Highest-value next block of work inside Block 1:
+Highest-value next block of work:
 
-### Verification Before Block 2
+### Session Summary And History
 
 Goals:
 
-- run a real end-to-end chat-turn smoke test with OpenAI configured
-- preserve focused tests for parsing and state-transition gaps
-- keep public scenario payloads free of `systemPrompt`
+- present the saved result after completion or rejection
+- consume the existing `GET /sessions` data in a visible history list
+- keep the first progression surface simple and based on persisted scores
 
 Suggested owner sequence:
 
@@ -145,8 +147,8 @@ Suggested owner sequence:
 
 - product docs can become stale because implementation has moved ahead of the old checklist
 - contracts can drift again if future backend/mobile changes do not update `packages/contracts`
-- the real OpenAI-backed response still needs an emulator smoke test with available API quota
-- the recovered OpenAI key is valid but currently returns `insufficient_quota`
+- `gpt-5-nano` is economical but its scoring quality still needs an eval set before production
+- API usage needs project-level spend alerts and limits before external users are enabled
 
 ## Questions This File Should Answer Quickly
 

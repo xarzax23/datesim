@@ -17,6 +17,7 @@ import { SCENARIOS } from '../scenarios/scenarios.data';
 export class ChatService {
   private openai: OpenAI;
   private readonly useMockOpenAI: boolean;
+  private readonly openaiModel: string;
 
   constructor(
     private config: ConfigService,
@@ -27,6 +28,7 @@ export class ChatService {
     private messageRepo: Repository<Message>,
   ) {
     this.useMockOpenAI = this.config.get<string>('USE_MOCK_OPENAI') === 'true';
+    this.openaiModel = this.config.get<string>('OPENAI_MODEL') ?? 'gpt-5-nano';
     this.openai = new OpenAI({
       apiKey: this.config.get<string>('OPENAI_API_KEY'),
     });
@@ -171,15 +173,15 @@ export class ChatService {
           }),
         );
         const stream = await this.openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: this.openaiModel,
           stream: true,
+          reasoning_effort: 'minimal',
           messages: [
             { role: 'system', content: systemPrompt },
             ...contextMessages,
             { role: 'user', content: userContent },
           ],
-          temperature: 0.8,
-          max_tokens: 400,
+          max_completion_tokens: 250,
         });
 
         for await (const chunk of stream) {
