@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../providers/chat_providers.dart';
 import '../../home/models/scenario.dart';
+import '../../sessions/models/session.dart';
+import '../../sessions/presentation/session_summary_screen.dart';
 import '../widgets/scorecard_display.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -43,6 +46,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatProvider.notifier).sendMessage(text);
   }
 
+  void _cancelResponse() {
+    ref.read(chatProvider.notifier).cancelResponse();
+  }
+
+  void _retryLastMessage() {
+    ref.read(chatProvider.notifier).retryLastMessage();
+  }
+
   Future<void> _completeSession() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -79,6 +90,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         );
       }
     });
+  }
+
+  void _openSummary(ChatState chatState) {
+    final completed = chatState.sessionEndReason == SessionEndReason.completed;
+    context.push(
+      '/summary',
+      extra: SessionSummaryArgs(
+        scenarioName: widget.scenario.name,
+        status: completed ? SessionStatus.completed : SessionStatus.rejected,
+        overallScore: chatState.finalScore ?? chatState.lastScorecard?.overall,
+        feedback: chatState.lastScorecard?.reason,
+      ),
+    );
   }
 
   @override
@@ -145,16 +169,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               color: isCompleted
                   ? theme.colorScheme.primaryContainer
                   : theme.colorScheme.errorContainer,
-              child: Text(
-                isCompleted
-                    ? 'Práctica completada. Tu resultado se ha guardado.'
-                    : 'La sesión ha terminado. ¡Inténtalo de nuevo!',
-                style: TextStyle(
-                  color: isCompleted
-                      ? theme.colorScheme.onPrimaryContainer
-                      : theme.colorScheme.onErrorContainer,
-                ),
-                textAlign: TextAlign.center,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      isCompleted
+                          ? 'Práctica completada. Tu resultado se ha guardado.'
+                          : 'La sesión ha terminado. ¡Inténtalo de nuevo!',
+                      style: TextStyle(
+                        color: isCompleted
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => _openSummary(chatState),
+                    child: const Text('Ver resultado'),
+                  ),
+                ],
               ),
             ),
           Expanded(
@@ -189,13 +222,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               },
             ),
           ),
+          if (chatState.canRetry && !chatState.sessionEnded)
+            _RetryResponseBanner(
+              onRetry: chatState.isSending ? null : _retryLastMessage,
+            ),
           _ChatInput(
             controller: _controller,
             onSend: _sendMessage,
-            enabled:
-                !chatState.isSending &&
-                !chatState.isCompleting &&
-                !chatState.sessionEnded,
+            onCancel: _cancelResponse,
+            isSending: chatState.isSending,
+            enabled: !chatState.isCompleting && !chatState.sessionEnded,
           ),
         ],
       ),
@@ -348,11 +384,15 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 class _ChatInput extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onSend;
+  final VoidCallback onCancel;
   final bool enabled;
+  final bool isSending;
 
   const _ChatInput({
     required this.controller,
     required this.onSend,
+    required this.onCancel,
+    required this.isSending,
     this.enabled = true,
   });
 
@@ -378,8 +418,8 @@ class _ChatInput extends StatelessWidget {
             child: TextField(
               controller: controller,
               textInputAction: TextInputAction.send,
-              onSubmitted: enabled ? (_) => onSend() : null,
-              enabled: enabled,
+              onSubmitted: enabled && !isSending ? (_) => onSend() : null,
+              enabled: enabled && !isSending,
               decoration: const InputDecoration(
                 hintText: 'Escribe tu mensaje...',
                 border: InputBorder.none,
@@ -390,8 +430,40 @@ class _ChatInput extends StatelessWidget {
             ),
           ),
           IconButton.filled(
-            onPressed: enabled ? onSend : null,
-            icon: const Icon(Icons.send),
+            tooltip: isSending ? 'Detener respuesta' : 'Enviar mensaje',
+            onPressed: enabled ? (isSending ? onCancel : onSend) : null,
+            icon: Icon(isSending ? Icons.stop_rounded : Icons.send),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RetryResponseBanner extends StatelessWidget {
+  final VoidCallback? onRetry;
+
+  const _RetryResponseBanner({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: theme.colorScheme.errorContainer,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'La respuesta no terminó correctamente.',
+              style: TextStyle(color: theme.colorScheme.onErrorContainer),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Reintentar'),
           ),
         ],
       ),

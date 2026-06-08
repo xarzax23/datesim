@@ -23,7 +23,11 @@ class _FakeChatService extends ChatService {
   _FakeChatService() : super(auth: _FakeFirebaseAuth());
 
   @override
-  Stream<ChatEvent> sendMessage(String sessionId, String content) async* {
+  Stream<ChatEvent> sendMessage(
+    String sessionId,
+    String content, {
+    required String clientMessageId,
+  }) async* {
     yield const ChatEvent(type: 'delta', rawData: 'Hola');
     yield const ChatEvent(
       type: 'scorecard',
@@ -38,7 +42,11 @@ class _RejectedChatService extends ChatService {
   _RejectedChatService() : super(auth: _FakeFirebaseAuth());
 
   @override
-  Stream<ChatEvent> sendMessage(String sessionId, String content) async* {
+  Stream<ChatEvent> sendMessage(
+    String sessionId,
+    String content, {
+    required String clientMessageId,
+  }) async* {
     yield const ChatEvent(type: 'delta', rawData: 'Respuesta corta');
     yield const ChatEvent(type: 'done', rawData: 'rejected');
   }
@@ -48,7 +56,11 @@ class _ErrorChatService extends ChatService {
   _ErrorChatService() : super(auth: _FakeFirebaseAuth());
 
   @override
-  Stream<ChatEvent> sendMessage(String sessionId, String content) async* {
+  Stream<ChatEvent> sendMessage(
+    String sessionId,
+    String content, {
+    required String clientMessageId,
+  }) async* {
     yield const ChatEvent(type: 'error', rawData: 'Error de prueba');
   }
 }
@@ -215,6 +227,7 @@ void main() {
       find.text('Práctica completada. Tu resultado se ha guardado.'),
       findsOneWidget,
     );
+    expect(find.text('Ver resultado'), findsOneWidget);
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
   });
 
@@ -245,5 +258,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Error de prueba'), findsOneWidget);
+    expect(find.text('Reintentar'), findsOneWidget);
   });
 }

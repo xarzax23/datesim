@@ -5,6 +5,8 @@ import '../features/auth/providers/auth_providers.dart';
 import '../features/home/models/scenario.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/chat/presentation/chat_screen.dart';
+import '../features/sessions/presentation/session_summary_screen.dart';
+import '../features/sessions/presentation/sessions_history_screen.dart';
 import '../core/config.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -21,14 +23,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const HomeScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       GoRoute(
         path: '/chat/:sessionId',
         builder: (context, state) {
@@ -38,6 +34,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return const HomeScreen();
           }
           return ChatScreen(sessionId: sessionId, scenario: scenario);
+        },
+      ),
+      GoRoute(
+        path: '/history',
+        builder: (context, state) => const SessionsHistoryScreen(),
+      ),
+      GoRoute(
+        path: '/summary',
+        builder: (context, state) {
+          final args = state.extra as SessionSummaryArgs?;
+          if (args == null) {
+            return const HomeScreen();
+          }
+          return SessionSummaryScreen(args: args);
         },
       ),
     ],

@@ -49,6 +49,7 @@ export type MessageRole = 'user' | 'assistant';
 
 export interface SendMessageRequest {
   content: string;
+  clientMessageId?: string;
 }
 
 export type ScorecardDecision = 'continue' | 'cool_down' | 'reject';

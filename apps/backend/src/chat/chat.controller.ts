@@ -35,6 +35,11 @@ export class ChatController {
     @Body() dto: SendMessageDto,
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Observable<MessageEvent>> {
-    return this.chatService.processMessage(sessionId, dto.content, user.id);
+    return this.chatService.processMessage(
+      sessionId,
+      dto.content,
+      user.id,
+      dto.clientMessageId,
+    );
   }
 }

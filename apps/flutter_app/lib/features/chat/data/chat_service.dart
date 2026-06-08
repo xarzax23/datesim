@@ -9,10 +9,21 @@ class ChatService {
   ChatService({required FirebaseAuth auth}) : _auth = auth;
 
   final FirebaseAuth _auth;
+  http.Client? _activeClient;
 
-  Stream<ChatEvent> sendMessage(String sessionId, String content) async* {
+  void cancelActiveRequest() {
+    _activeClient?.close();
+    _activeClient = null;
+  }
+
+  Stream<ChatEvent> sendMessage(
+    String sessionId,
+    String content, {
+    required String clientMessageId,
+  }) async* {
     final headers = await authHeaders(_auth);
     final client = http.Client();
+    _activeClient = client;
     try {
       final request = http.Request(
         'POST',
@@ -21,7 +32,10 @@ class ChatService {
       request.headers['Content-Type'] = 'application/json';
       request.headers['Accept'] = 'text/event-stream';
       request.headers.addAll(headers);
-      request.body = jsonEncode({'content': content});
+      request.body = jsonEncode({
+        'content': content,
+        'clientMessageId': clientMessageId,
+      });
 
       final response = await client.send(request);
 
@@ -55,6 +69,9 @@ class ChatService {
       );
     } finally {
       client.close();
+      if (identical(_activeClient, client)) {
+        _activeClient = null;
+      }
     }
   }
 }

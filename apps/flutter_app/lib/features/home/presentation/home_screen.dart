@@ -44,10 +44,9 @@ class HomeScreen extends ConsumerWidget {
             title: const Text('DateSim'),
             actions: [
               IconButton(
-                icon: const Icon(Icons.person_outline),
-                onPressed: () {
-                  // TODO: navegar a perfil
-                },
+                tooltip: 'Ver progreso',
+                icon: const Icon(Icons.history),
+                onPressed: () => context.push('/history'),
               ),
             ],
           ),
@@ -75,13 +74,13 @@ class HomeScreen extends ConsumerWidget {
                     loading: () =>
                         const Center(child: CircularProgressIndicator()),
                     error: (error, _) => _ErrorView(
-                      message:
-                          error.toString().replaceFirst('Exception: ', ''),
+                      message: error.toString().replaceFirst('Exception: ', ''),
                       onRetry: () => ref.invalidate(scenariosProvider),
                     ),
                     data: (scenarios) => scenarios.isEmpty
                         ? const Center(
-                            child: Text('No hay escenarios disponibles.'))
+                            child: Text('No hay escenarios disponibles.'),
+                          )
                         : ListView.separated(
                             itemCount: scenarios.length,
                             separatorBuilder: (_, __) =>
@@ -132,15 +131,22 @@ class _ErrorView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.wifi_off_rounded,
-              size: 48, color: theme.colorScheme.error),
+          Icon(
+            Icons.wifi_off_rounded,
+            size: 48,
+            color: theme.colorScheme.error,
+          ),
           const SizedBox(height: 12),
-          Text(message,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium,
+          ),
           const SizedBox(height: 16),
           FilledButton.tonal(
-              onPressed: onRetry, child: const Text('Reintentar')),
+            onPressed: onRetry,
+            child: const Text('Reintentar'),
+          ),
         ],
       ),
     );

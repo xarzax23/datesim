@@ -1,5 +1,6 @@
 import {
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
@@ -8,6 +9,7 @@ import {
 import { Session } from './session.entity';
 
 @Entity('messages')
+@Index(['sessionId', 'clientMessageId'], { unique: true })
 export class Message {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
@@ -17,6 +19,9 @@ export class Message {
 
   @Column()
   sessionId!: string;
+
+  @Column({ nullable: true })
+  clientMessageId?: string;
 
   @Column()
   turnIndex!: number;

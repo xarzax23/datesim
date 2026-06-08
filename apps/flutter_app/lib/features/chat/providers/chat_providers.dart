@@ -39,8 +39,12 @@ class ChatState {
   final bool isCompleting;
   final bool sessionEnded;
   final SessionEndReason? sessionEndReason;
+  final double? finalScore;
   final String? errorMessage;
   final Scorecard? lastScorecard;
+  final String? retryContent;
+  final String? retryClientMessageId;
+  final String? retryAssistantId;
 
   const ChatState({
     this.messages = const [],
@@ -48,9 +52,18 @@ class ChatState {
     this.isCompleting = false,
     this.sessionEnded = false,
     this.sessionEndReason,
+    this.finalScore,
     this.errorMessage,
     this.lastScorecard,
+    this.retryContent,
+    this.retryClientMessageId,
+    this.retryAssistantId,
   });
+
+  bool get canRetry =>
+      retryContent != null &&
+      retryClientMessageId != null &&
+      retryAssistantId != null;
 
   ChatState copyWith({
     List<ChatMessage>? messages,
@@ -58,21 +71,35 @@ class ChatState {
     bool? isCompleting,
     bool? sessionEnded,
     SessionEndReason? sessionEndReason,
+    double? finalScore,
     Object? errorMessage = _noChange,
     Scorecard? lastScorecard,
     bool clearLastScorecard = false,
+    Object? retryContent = _noChange,
+    Object? retryClientMessageId = _noChange,
+    Object? retryAssistantId = _noChange,
   }) => ChatState(
     messages: messages ?? this.messages,
     isSending: isSending ?? this.isSending,
     isCompleting: isCompleting ?? this.isCompleting,
     sessionEnded: sessionEnded ?? this.sessionEnded,
     sessionEndReason: sessionEndReason ?? this.sessionEndReason,
+    finalScore: finalScore ?? this.finalScore,
     errorMessage: errorMessage == _noChange
         ? this.errorMessage
         : errorMessage as String?,
     lastScorecard: clearLastScorecard
         ? null
         : lastScorecard ?? this.lastScorecard,
+    retryContent: retryContent == _noChange
+        ? this.retryContent
+        : retryContent as String?,
+    retryClientMessageId: retryClientMessageId == _noChange
+        ? this.retryClientMessageId
+        : retryClientMessageId as String?,
+    retryAssistantId: retryAssistantId == _noChange
+        ? this.retryAssistantId
+        : retryAssistantId as String?,
   );
 }
 
@@ -82,15 +109,21 @@ class ChatNotifier extends Notifier<ChatState> {
   late ChatService _service;
   String? _sessionId;
   Scenario? _scenario;
+  String? _activeContent;
+  String? _activeClientMessageId;
+  String? _activeAssistantId;
+  int _requestGeneration = 0;
 
   @override
   ChatState build() {
     _service = ref.watch(chatServiceProvider);
+    ref.onDispose(_service.cancelActiveRequest);
     return const ChatState();
   }
 
   void configure(ChatProviderArgs args) {
     if (_sessionId != args.sessionId) {
+      cancelResponse();
       state = const ChatState();
     }
     _sessionId = args.sessionId;
@@ -123,12 +156,94 @@ class ChatNotifier extends Notifier<ChatState> {
 
     if (state.isSending || state.isCompleting || state.sessionEnded) return;
 
+    final timestamp = DateTime.now().microsecondsSinceEpoch;
+    await _sendMessage(
+      sessionId: currentSessionId,
+      content: content,
+      clientMessageId: '$currentSessionId-$timestamp',
+      assistantId: '${timestamp}_a',
+      appendUserMessage: true,
+    );
+  }
+
+  Future<void> retryLastMessage() async {
+    final currentSessionId = _sessionId;
+    final content = state.retryContent;
+    final clientMessageId = state.retryClientMessageId;
+    final assistantId = state.retryAssistantId;
+    if (currentSessionId == null ||
+        content == null ||
+        clientMessageId == null ||
+        assistantId == null ||
+        state.isSending ||
+        state.isCompleting ||
+        state.sessionEnded) {
+      return;
+    }
+
+    await _sendMessage(
+      sessionId: currentSessionId,
+      content: content,
+      clientMessageId: clientMessageId,
+      assistantId: assistantId,
+      appendUserMessage: false,
+    );
+  }
+
+  void cancelResponse() {
+    if (!state.isSending) return;
+
+    final content = _activeContent;
+    final clientMessageId = _activeClientMessageId;
+    final assistantId = _activeAssistantId;
+    _requestGeneration++;
+    _service.cancelActiveRequest();
+
+    if (content == null || clientMessageId == null || assistantId == null) {
+      state = state.copyWith(isSending: false);
+      return;
+    }
+
+    final updated = state.messages
+        .map(
+          (message) => message.id == assistantId
+              ? message.copyWith(
+                  content: message.content.isEmpty
+                      ? 'Respuesta detenida.'
+                      : message.content,
+                  isStreaming: false,
+                )
+              : message,
+        )
+        .toList();
+    state = state.copyWith(
+      messages: updated,
+      isSending: false,
+      errorMessage: null,
+      retryContent: content,
+      retryClientMessageId: clientMessageId,
+      retryAssistantId: assistantId,
+    );
+    _clearActiveRequest();
+  }
+
+  Future<void> _sendMessage({
+    required String sessionId,
+    required String content,
+    required String clientMessageId,
+    required String assistantId,
+    required bool appendUserMessage,
+  }) async {
+    final requestGeneration = ++_requestGeneration;
+    _activeContent = content;
+    _activeClientMessageId = clientMessageId;
+    _activeAssistantId = assistantId;
+
     final userMsg = ChatMessage(
       id: '${DateTime.now().millisecondsSinceEpoch}_u',
       role: 'user',
       content: content,
     );
-    final assistantId = '${DateTime.now().millisecondsSinceEpoch}_a';
     final assistantMsg = ChatMessage(
       id: assistantId,
       role: 'assistant',
@@ -137,31 +252,70 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     state = state.copyWith(
-      messages: [...state.messages, userMsg, assistantMsg],
+      messages: appendUserMessage
+          ? [...state.messages, userMsg, assistantMsg]
+          : state.messages
+                .map(
+                  (message) =>
+                      message.id == assistantId ? assistantMsg : message,
+                )
+                .toList(),
       isSending: true,
       errorMessage: null,
       clearLastScorecard: true,
+      retryContent: null,
+      retryClientMessageId: null,
+      retryAssistantId: null,
     );
 
+    var receivedTerminalEvent = false;
     try {
       await for (final event in _service.sendMessage(
-        currentSessionId,
+        sessionId,
         content,
+        clientMessageId: clientMessageId,
       )) {
+        if (requestGeneration != _requestGeneration) return;
         switch (event.type) {
           case 'delta':
             _appendToken(assistantId, event.rawData);
           case 'scorecard':
             _handleScorecard(event.rawData);
           case 'done':
+            receivedTerminalEvent = true;
             _finishStreaming(assistantId, rejected: event.isRejected);
           case 'error':
-            _handleError(assistantId, event.rawData);
+            receivedTerminalEvent = true;
+            _handleError(
+              assistantId,
+              event.rawData,
+              content: content,
+              clientMessageId: clientMessageId,
+            );
         }
       }
+      if (requestGeneration == _requestGeneration &&
+          !receivedTerminalEvent &&
+          state.isSending) {
+        _handleError(
+          assistantId,
+          'La respuesta se interrumpió antes de terminar.',
+          content: content,
+          clientMessageId: clientMessageId,
+        );
+      }
+    } catch (_) {
+      if (requestGeneration == _requestGeneration) {
+        _handleError(
+          assistantId,
+          'No se pudo conectar al servidor.',
+          content: content,
+          clientMessageId: clientMessageId,
+        );
+      }
     } finally {
-      if (state.isSending) {
-        _finishStreaming(assistantId, rejected: false);
+      if (requestGeneration == _requestGeneration) {
+        _clearActiveRequest();
       }
     }
   }
@@ -196,6 +350,7 @@ class ChatNotifier extends Notifier<ChatState> {
         isCompleting: false,
         sessionEnded: true,
         sessionEndReason: SessionEndReason.completed,
+        finalScore: session.overallScore,
       );
       ref.invalidate(sessionsProvider);
     } catch (error) {
@@ -241,10 +396,19 @@ class ChatNotifier extends Notifier<ChatState> {
       sessionEndReason: rejected
           ? SessionEndReason.rejected
           : state.sessionEndReason,
+      finalScore: rejected ? state.lastScorecard?.overall : state.finalScore,
+      retryContent: null,
+      retryClientMessageId: null,
+      retryAssistantId: null,
     );
   }
 
-  void _handleError(String msgId, String error) {
+  void _handleError(
+    String msgId,
+    String error, {
+    required String content,
+    required String clientMessageId,
+  }) {
     final updated = state.messages
         .map(
           (m) => m.id == msgId
@@ -259,7 +423,16 @@ class ChatNotifier extends Notifier<ChatState> {
       messages: updated,
       isSending: false,
       errorMessage: error,
+      retryContent: content,
+      retryClientMessageId: clientMessageId,
+      retryAssistantId: msgId,
     );
+  }
+
+  void _clearActiveRequest() {
+    _activeContent = null;
+    _activeClientMessageId = null;
+    _activeAssistantId = null;
   }
 }
 

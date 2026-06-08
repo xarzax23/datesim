@@ -2,12 +2,12 @@
 
 ## Current Focus
 
-Start Block 2 now that the complete Android-to-OpenAI flow is verified:
+Block 2 is complete. Prepare Block 3 around conversation quality and safety:
 
-1. show a useful summary for completed and rejected sessions
-2. list past sessions from the existing backend endpoint
-3. add a basic progression/history surface
-4. improve retry and SSE cancellation behavior
+1. define a compact eval set with positive, neutral, weak, hostile, and unsafe replies
+2. measure scoring and rejection behavior across the current scenarios
+3. calibrate prompts and thresholds using repeatable results
+4. define the minimum moderation path needed before external users
 
 ## Completed Block
 
@@ -117,18 +117,32 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 ## Immediate Execution Order
 
-1. product-ux-designer: define the completed/rejected session summary.
-2. mobile-flutter-developer: implement the summary and past-session list.
-3. qa-release-engineer: cover summary/history states and retry behavior.
+1. delivery-manager + llm-scenarios-scoring: define the Block 3 eval matrix and acceptance thresholds.
+2. backend-api-developer: expose repeatable scoring inputs without changing the user flow.
+3. qa-release-engineer: automate the eval cases and report regressions.
+4. product-ux-designer: review whether score feedback remains understandable and respectful.
 
 ## Current Block
 
 ### Block 2 - Session UX Completion
 
-- [ ] Session summary UI for completed/rejected sessions
-- [ ] List past sessions
-- [ ] Basic progression/history screen
-- [ ] Cleaner error and retry states in chat
+- [x] Session summary UI for completed/rejected sessions
+  - Result: terminal chat states expose `Ver resultado`; the summary shows scenario, status, global score, feedback, and actions to practice again or open history
+- [x] List past sessions
+  - Result: Inicio exposes `Tu progreso`; the screen lists persisted sessions with scenario, status, date, and score
+- [x] Basic progression/history screen
+  - Result: history calculates terminal practice count, completed count, and average persisted score
+- [x] Cleaner error and retry states in chat
+  - Result: an active response can be stopped, interrupted turns expose `Reintentar`, and the same `clientMessageId` is reused so the backend can replay a persisted response without duplicating the user message
+  - Verified: Android stopped a real `gpt-5-nano` stream, showed the recoverable state, retried it, and rendered the persisted response and scorecard with one user bubble
+
+### Proposed Block 3 - Conversation Quality and Safety
+
+- [ ] Define a small versioned scoring eval set
+- [ ] Establish expected score ranges and decisions per case
+- [ ] Run the eval set against `gpt-5-nano`
+- [ ] Calibrate scoring prompts and rejection thresholds
+- [ ] Define the minimum production moderation path
 
 ## Important Constraints
 
@@ -139,9 +153,10 @@ Replace mock/mobile-only conversation flow with real backend-driven data and SSE
 
 ## Open Risks
 
-- SSE handling in Flutter still needs explicit cancellation behavior.
-- Malformed scorecard events are covered; malformed transport lines are ignored, but the user-facing retry path remains basic.
+- Active request coordination is currently in memory; a multi-instance backend will need a database-backed processing state or equivalent distributed coordination.
+- Malformed scorecard events are covered; malformed transport lines are ignored and surface through the retry path when the stream ends without a terminal event.
 - Contracts package is aligned with the current runtime shape, but still needs a mature workflow before it becomes the long-term source of truth.
+- Older rejected sessions may not have a persisted score; new rejections now store their final score for history.
 
 ## Update Rule
 

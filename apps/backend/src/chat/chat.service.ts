@@ -1,12 +1,13 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
 import { ScoringService, ScorecardResult } from '../scoring/scoring.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +19,7 @@ export class ChatService {
   private openai: OpenAI;
   private readonly useMockOpenAI: boolean;
   private readonly openaiModel: string;
+  private readonly activeRequests = new Set<string>();
 
   constructor(
     private config: ConfigService,
@@ -38,6 +40,7 @@ export class ChatService {
     sessionId: string,
     userContent: string,
     userId: string,
+    clientMessageId?: string,
   ): Promise<Observable<MessageEvent>> {
     const session = await this.sessionRepo.findOne({
       where: { id: sessionId, userId },
@@ -45,48 +48,88 @@ export class ChatService {
     if (!session) {
       throw new NotFoundException('Session not found');
     }
-    if (session.status !== 'active') {
-      throw new BadRequestException('Session is no longer active');
+
+    const requestKey = clientMessageId
+      ? `${sessionId}:${clientMessageId}`
+      : undefined;
+    if (requestKey && this.activeRequests.has(requestKey)) {
+      throw new ConflictException('Message is still processing');
+    }
+    if (requestKey) {
+      this.activeRequests.add(requestKey);
     }
 
-    // Get recent messages for context window (last 10 turns)
-    const recentMessages = await this.messageRepo.find({
-      where: { sessionId },
-      order: { turnIndex: 'ASC' },
-      take: 20,
-    });
+    try {
+      const existingUserMessage = clientMessageId
+        ? await this.messageRepo.findOne({
+            where: { sessionId, clientMessageId, role: 'user' },
+          })
+        : null;
 
-    const turnIndex = recentMessages.length;
-    const contextStrings = recentMessages.map((m) => m.content);
+      if (existingUserMessage) {
+        const existingAssistantMessage = await this.messageRepo.findOne({
+          where: {
+            sessionId,
+            turnIndex: existingUserMessage.turnIndex + 1,
+            role: 'assistant',
+          },
+        });
+        if (existingAssistantMessage) {
+          if (requestKey) this.activeRequests.delete(requestKey);
+          return this.replayResponse(session, existingAssistantMessage);
+        }
+      }
 
-    // 1. Persist user message
-    await this.messageRepo.save({
-      sessionId,
-      turnIndex,
-      role: 'user',
-      content: userContent,
-    });
+      if (session.status !== 'active') {
+        throw new BadRequestException('Session is no longer active');
+      }
 
-    // 2. Score the message
-    const scorecard = await this.scoring.scoreMessage(
-      userContent,
-      contextStrings,
-      session.difficulty,
-    );
+      // Get recent messages for context window (last 10 turns)
+      const recentMessages = await this.messageRepo.find({
+        where: { sessionId },
+        order: { turnIndex: 'ASC' },
+        take: 20,
+      });
+      const contextMessages = existingUserMessage
+        ? recentMessages.filter(
+            (message) => message.turnIndex < existingUserMessage.turnIndex,
+          )
+        : recentMessages;
+      const turnIndex = existingUserMessage?.turnIndex ?? recentMessages.length;
+      const contextStrings = contextMessages.map((message) => message.content);
 
-    // 3. Generate character response with streaming
-    const subject = new Subject<MessageEvent>();
+      if (!existingUserMessage) {
+        await this.messageRepo.save({
+          sessionId,
+          clientMessageId,
+          turnIndex,
+          role: 'user',
+          content: userContent,
+        });
+      }
 
-    void this.streamResponse(
-      session,
-      userContent,
-      contextStrings,
-      scorecard,
-      turnIndex,
-      subject,
-    );
+      const scorecard = await this.scoring.scoreMessage(
+        userContent,
+        contextStrings,
+        session.difficulty,
+      );
+      const subject = new Subject<MessageEvent>();
 
-    return subject.asObservable();
+      void this.streamResponse(
+        session,
+        userContent,
+        contextStrings,
+        scorecard,
+        turnIndex,
+        subject,
+        requestKey,
+      );
+
+      return subject.asObservable();
+    } catch (error) {
+      if (requestKey) this.activeRequests.delete(requestKey);
+      throw error;
+    }
   }
 
   private async streamResponse(
@@ -96,6 +139,7 @@ export class ChatService {
     scorecard: ScorecardResult,
     turnIndex: number,
     subject: Subject<MessageEvent>,
+    requestKey?: string,
   ): Promise<void> {
     try {
       // If rejected, send rejection and close
@@ -111,7 +155,10 @@ export class ChatService {
           scorecard: { ...scorecard },
         });
 
-        await this.sessionRepo.update(session.id, { status: 'rejected' });
+        await this.sessionRepo.update(session.id, {
+          status: 'rejected',
+          overallScore: scorecard.overall,
+        });
 
         subject.next(
           new MessageEvent('message', {
@@ -231,7 +278,42 @@ export class ChatService {
         }),
       );
       subject.complete();
+    } finally {
+      if (requestKey) this.activeRequests.delete(requestKey);
     }
+  }
+
+  private replayResponse(
+    session: Session,
+    assistantMessage: Message,
+  ): Observable<MessageEvent> {
+    const events = [
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'delta',
+          data: assistantMessage.content,
+        }),
+      }),
+    ];
+    if (session.difficulty === 'easy' && assistantMessage.scorecard) {
+      events.push(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'scorecard',
+            data: JSON.stringify(assistantMessage.scorecard),
+          }),
+        }),
+      );
+    }
+    events.push(
+      new MessageEvent('message', {
+        data: JSON.stringify({
+          type: 'done',
+          data: session.status === 'rejected' ? 'rejected' : 'ok',
+        }),
+      }),
+    );
+    return of(...events);
   }
 
   private buildMockResponse(

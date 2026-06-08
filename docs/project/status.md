@@ -36,19 +36,19 @@ Implemented:
 - basic rejection flow that updates session status to `rejected`
 - explicit session completion endpoint with persisted average score
 - terminal-state protection that rejects new messages after completion or rejection
+- rejected sessions persist their final score for later history
 - configurable low-cost OpenAI model with minimal reasoning and bounded output
+- idempotent chat retries through optional client message identifiers and persisted-response replay
 
 Partial:
 
 - scoring dimensions are simpler than the longer product vision
 - scene direction logic exists only as lightweight steering in chat flow
 - production-grade moderation path is not yet defined
-- completed-session summary remains intentionally basic until Block 2
+- active request coordination is in memory and is not yet designed for multiple backend instances
 
 Missing:
 
-- richer post-session feedback
-- progression/history features
 - evals pipeline for prompts and scoring regressions
 
 ### Mobile App
@@ -65,19 +65,20 @@ Implemented:
 - Riverpod chat state for streaming, errors, scorecard, and rejected session state
 - scorecard display in easy mode
 - explicit practice completion with confirmation, persisted result, terminal banner, and disabled input
+- completed/rejected session summary with global score and feedback
+- past-session history with status, date, score, and basic progress metrics
+- explicit response cancellation and retry without duplicating the visible user turn
 - tests around scorecard parsing/display and chat state transitions
 
 Partial:
 
 - rejected/done UX is MVP-basic and still needs product polish
-- completed/rejected summary UX still needs the richer Block 2 view
+- profile and broader progression surfaces remain outside the current MVP scope
 
 Missing:
 
-- session summary UI
-- past sessions list UI
-- profile and progress surfaces
-- production-ready retry/cancellation behavior for long SSE streams
+- production-ready distributed coordination for idempotent retries
+- profile and advanced progress surfaces
 
 ### Contracts / Tooling
 
@@ -102,6 +103,7 @@ Partial:
 - a fictitious email user can authenticate, load scenarios, create a persisted session, and open the chat from Android
 - local fallback mode remains available and derives varied heuristic scores and feedback without API spend
 - real OpenAI mode is verified from Android with `gpt-5-nano`, SSE streaming, contextual replies, and structured scorecards
+- Android cancellation and retry are verified against real OpenAI mode; the retried turn replays the persisted assistant response without duplicating the user message
 - normal completion is verified from Android and PostgreSQL: the latest device session persisted as `completed` with its calculated overall score
 
 Missing:
@@ -112,42 +114,46 @@ Missing:
 
 ## MVP Phase
 
-The project is now in:
+The project has completed:
 
 **Block 2 - Session UX Completion**
 
-Block 1 is complete: authentication, scenarios, session creation, real OpenAI chat streaming, scoring, rejection, and explicit completion are verified. The focus now is:
+Block 1 covers the real mobile-backend conversation flow. Block 2 now covers session summary, history, basic progress, stream cancellation, and retry without duplicate visible messages.
 
-1. session summary UX for completed/rejected sessions
-2. past-session list and basic progression/history
-3. cleaner retry and SSE cancellation behavior
+The proposed next phase is:
+
+**Block 3 - Conversation Quality and Safety**
+
+1. build a compact, repeatable scoring eval set
+2. calibrate score ranges and rejection decisions
+3. define the minimum moderation path before external users
 
 ## Immediate Next Step
 
 Highest-value next block of work:
 
-### Session Summary And History
+### Scoring Eval Baseline
 
 Goals:
 
-- present the saved result after completion or rejection
-- consume the existing `GET /sessions` data in a visible history list
-- keep the first progression surface simple and based on persisted scores
+- verify that positive, neutral, weak, hostile, and unsafe replies receive meaningfully different results
+- make prompt and threshold changes measurable
+- keep testing economical with the configured `gpt-5-nano` model
 
 Suggested owner sequence:
 
 1. `delivery-manager`
-2. `backend-api-developer`
+2. `llm-scenarios-scoring`
 3. `qa-release-engineer`
-4. `product-ux-designer`
-5. `contracts-integration`
-6. `mobile-flutter-developer`
+4. `backend-api-developer`
+5. `product-ux-designer`
 
 ## Current Risks
 
 - product docs can become stale because implementation has moved ahead of the old checklist
 - contracts can drift again if future backend/mobile changes do not update `packages/contracts`
 - `gpt-5-nano` is economical but its scoring quality still needs an eval set before production
+- retry coordination is process-local and must be strengthened before running multiple backend instances
 - API usage needs project-level spend alerts and limits before external users are enabled
 
 ## Questions This File Should Answer Quickly
